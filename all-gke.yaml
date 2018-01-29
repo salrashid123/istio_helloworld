@@ -1,0 +1,214 @@
+---
+apiVersion: v1
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tDQpNSUlEempDQ0FyYWdBd0lCQWdJQlZEQU5CZ2txaGtpRzl3MEJBUXNGQURCM01Rc3dDUVlEVlFRR0V3SlZVekVUDQpNQkVHQTFVRUNCTUtRMkZzYVdadmNtNXBZVEVXTUJRR0ExVUVCeE1OVFc5MWJuUmhhVzRnVm1sbGR6RVBNQTBHDQpBMVVFQ2hNR1IyOXZaMnhsTVJNd0VRWURWUVFMRXdwRmJuUmxjbkJ5YVhObE1SVXdFd1lEVlFRREV3eFVaWE4wDQpRMEZtYjNKRlUwOHdIaGNOTVRjeE1qSTBNVGd4TnpRMldoY05NakF3TmpFeE1UZ3hOelEyV2pCd01Rc3dDUVlEDQpWUVFHRXdKVlV6RVRNQkVHQTFVRUNCTUtRMkZzYVdadmNtNXBZVEVQTUEwR0ExVUVDaE1HUjI5dloyeGxNUk13DQpFUVlEVlFRTEV3cEZiblJsY25CeWFYTmxNU1l3SkFZRFZRUURFeDFuYTJVdVpHVm1ZWFZzZEM1emRtTXVZMngxDQpjM1JsY2k1c2IyTmhiRENDQVNJd0RRWUpLb1pJaHZjTkFRRUJCUUFEZ2dFUEFEQ0NBUW9DZ2dFQkFNQmF0WDQ3DQpVbzJjNUYyNXUrN2VlQ3Y2Vk1nVUtJN3Q1ZElldmtVWDAwY2tzby8yOXRkTmV4TkJJTE1za2VzOXRHaUQyVGRwDQppVWZrakRwUHYzalFnQlZUamIvSkl0eXN0NHNJc3VNbExGZGNTeDJUdDBNbWJrTCtLcU4wQVUxTlZUVGJVS2VlDQpkSWVXaGM1cE5nbUF4NHN4dldIVFNQTmpXNHBXYlB3RHVmdDJQVXFmaVR1cmFwaCs0M1lySnNIcjJhTWNxK0NZDQpodXZ4bFFCRWdjcGZydnFyUXU5a0wwN1dBcDhTUi9LcE9CUzZGNmQyQ3lCUnB0eU9jODYxR1BWa3lkRGhUQ0VGDQo3cWY3L2lUU2VEelB3aW10VlBiYjVhNkcyZFczQlpwVlNsZzlza2k0VHRrNGNiQk85bk5iOWVYVUd0bjkyWmlRDQptb09sSFFpRlo1NytvcVVDQXdFQUFhTnNNR293Q1FZRFZSMFRCQUl3QURBc0JnbGdoa2dCaHZoQ0FRMEVIeFlkDQpUM0JsYmxOVFRDQkhaVzVsY21GMFpXUWdRMlZ5ZEdsbWFXTmhkR1V3SWdZRFZSMFJCQnN3R1lJWGJXbHVaWEpoDQpiQzVsYzI5a1pXMXZZWEJ3TWk1amIyMHdDd1lEVlIwUEJBUURBZ1hnTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCDQpBUUNPZGJ0aEVseStoU2ZzbnpiTkk2N21xbnhoWXppWWVYZzR0ZTFCZmtxam43QUVnU2NuNm1UWVVCQ1JjUUxNDQpPVlQ2b0JwVUZtZkJtOUlsWVFGYU1VUzVPUDNyVEZQU21DUFBDRnhJdzQvZlJWSVZnL3BjM244MEU1QlZ4bWZEDQpBM1FnZ0RiSWlUWDVCbis4RG16M0swb2szWUZpRkIxNHhFMzlnVkYzMWVyaHY2cWdXNWFuMyt4SUhRRmh2Yk1yDQppWG1RamcyeFIzNmFmMTYvdmFPN2ErNlJSZDhteS95Z04rT2l3RUNuTTdqQ1Z5R0NDQ1UrYjRXd1VKS2hUbmZVDQp2SDBUcWxtT1dsTmticDV6bUVqMWl1emJlYkw4MUI3czNhUjNXdnBIQjY2LzBkeGNTU0dXTkhvR0xhZmc2YldlDQphS29wZjVqQzEwRXdhbkRza09TV3g1T2kNCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQ0KTUlJRXBBSUJBQUtDQVFFQXdGcTFmanRTalp6a1hibTc3dDU0Sy9wVXlCUW9qdTNsMGg2K1JSZlRSeVN5ai9iMg0KMTAxN0UwRWdzeXlSNnoyMGFJUFpOMm1KUitTTU9rKy9lTkNBRlZPTnY4a2kzS3kzaXdpeTR5VXNWMXhMSFpPMw0KUXladVF2NHFvM1FCVFUxVk5OdFFwNTUwaDVhRnptazJDWURIaXpHOVlkTkk4Mk5iaWxacy9BTzUrM1k5U3ArSg0KTzZ0cW1IN2pkaXNtd2V2Wm94eXI0SmlHNi9HVkFFU0J5bCt1K3F0QzcyUXZUdFlDbnhKSDhxazRGTG9YcDNZTA0KSUZHbTNJNXp6clVZOVdUSjBPRk1JUVh1cC92K0pOSjRQTS9DS2ExVTl0dmxyb2JaMWJjRm1sVktXRDJ5U0xoTw0KMlRoeHNFNzJjMXYxNWRRYTJmM1ptSkNhZzZVZENJVm5udjZpcFFJREFRQUJBb0lCQVFDTFNlUTlHWFlKS0FCUw0KUW1udGFsbTQ5dGduM2prVWJ2N0o3Z3MzK3kyNlNiK244bDBDd1krSy9ORlNEY2RJZ25FK2NhTjh0Y1o4TWVxOQ0KV3Z3NjN6aXd1TVZmaUtYZkNJOE1kZXNjQXRJZUhLNGtKOUJBSnZjWE9mZmtUdCtXZTVaazVSOTlrWWV1bTNnZg0KWlI2Rk9TVEdEZW1taWhvOGJNbGYzbitpNm92bG81RzZnMFh4RmdzMkRJdGtmS3o5b1VIelpKTkdMZ01WKzREWQ0KRDh4UEdiNHpUaEFxYkx3ODFpTkpJWTVvNlBpQlpTWnkvcnl0RjRKdjdtMWhURXVvNmd6YzV1c3h0OGFHVjJhYg0KS0ZiT29scDc3NlRFYlhmQ09lbndMWVQ0dWFURkdZY0pnZ1llZUNuTU9EN1RkaFhRRUVSVmVIUllFQkJNN2ZHOA0KUVF0c014b2hBb0dCQVBNb3FTT3hWZ3o0c0FrSDI2UTA1aFA4a0FWRG9LaUNZMjNzUzZHZWlkaUVtOXkrcktnLw0KTVNUZmtZTlJyRjRaTGdrT3MrOWV0NkpyVTIzSVRWdHgvWU11Wm9CNkRZYzRDSk1FSXBvaDB5NGxKRDNISkZRUw0KUG51ZE5rTTd3Nkh5VmYvNm53ci9RekFxNjUzUHdueDJINDhXdlVxaW5wb09CTWxOUlVxOXdtMFpBb0dCQU1xRA0KTk9DRTI3ZEo2NTUwemhZQ1phTXdHNnIyVzBrTnE0YWVySDYyUVJUUjFwdzVFc09nT0xiT0E4R2ZKczBaVWdaKw0KWE5Zblh0MkpLK1FEM0dDV3hxL21nbE5WUXgxVm11OWpqNlcxSW9takxXNW01OHg1c01EY2h0Wi85T3dPTTdhSw0KR1l3dElHK3pOK0kzNUErSE0rQ3FlTDNlQk9iVFZmSXpUWlF3M29kdEFvR0JBTHJVYkJrcm9iVjN3ekk5SW1zcA0KNWZwSFhaVmQzK3g1dXRIejlDeXJOcmp4TXh6S09MbFJUSDVMZFcvVDZqK20wek5NWTc2eEpTR2JtMC9Iem9CTA0KdG9EN3Z2QktWMmlsQ2htRDNONVd6UDh3dElidkl4K2hvUGF6MWNTVS8vekh5WUpVVzYxRWNxaG80ZjZ3YW52Yw0KK3VTamtTL3VnVFJYUHlBNHlkdmlyNmZKQW9HQVY0MnVXTHRYK3NCY3U5OG9FbC9xN1VpcFRackJFSzUyVC9kZQ0KQUZKdmhMN01HREtjcURNbkVmR3pzZ3hLekRWOFB3NTJ1S2ZBM2VxbUxTaDJLTlJIQmxtVVVzN3orMFM5ZlczLw0KOXRaL0hoNk1UOFR4eG5kK01ZT21VQ3AyQzNDQWJ4VDV3cDduL1NMd3NEOFZ2SmpwbHVKYzNVbVZ1TzM1cElNRg0Kc1dJSGMya0NnWUJpYStScXVaYSsrZzE3KzVvRG5IRy94N0svOWlwZVBmTTU4T2w5Nk8xSjhUazkzdlhpNTZWeg0KNlBMUjRnL2JEWThSTmlvRHhCRnhrOXpIZG4vZ2UwditOZ0E0bllhYmRNTDB5eXo1Z3lRZHlmM2ZFdi81K0VxNg0KdzNYWmwrNEhrVXl3Z0NTc1pORGtiTVNXWEdPZmdQTm9YOGdHQ3F3WHRtelVMUENJdFk1S09RPT0NCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0t
+kind: Secret
+metadata:
+  name: istio-ingress-certs
+  #namespace: istio-system
+type: Opaque
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: gateway
+  annotations:
+    #kubernetes.io/ingress.class: "istio"
+    kubernetes.io/ingress.allowHTTP: "false"
+spec:
+  tls:
+  - secretName: istio-ingress-certs
+  rules:
+  - http:
+      paths:
+      #- path: /.*
+      - path: /*
+        backend:
+          serviceName: myapp
+          servicePort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+  labels:
+    app: myapp
+spec:
+  type: NodePort
+  ports:
+  - port: 8080
+    name: http
+  selector:
+    app: myapp
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: api-keys
+type: Opaque
+data:
+  google-key: "QUl6YVN5RGdSWTNEejRCenFwekxXRG1JU1JhSm80ejlDLXBvNXpnCg=="
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: myapp-v1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: v1
+    spec:
+      containers:
+      - name: myapp-container
+        image: salrashid123/istioinit:1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        #livenessProbe:
+        #  httpGet:
+        #    path: /_ah/health
+        #    port: 8080
+        #  initialDelaySeconds: 30
+        #  timeoutSeconds: 1
+        env:
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName              
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: google-key
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: myapp-v2
+spec:
+  replicas: 0 
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: v2
+    spec:
+      containers:
+      - name: myapp-container
+        image: salrashid123/istioinit:2
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName              
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-keys
+              key: google-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: be
+  labels:
+    app: be
+spec:
+  ports:
+  - name: http
+    port: 8080
+  selector:
+    app: be
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: be-v1
+  labels:
+    type: be
+    version: v1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: be
+        version: v1
+    spec:
+      containers:
+      - name: be-container
+        image: salrashid123/istioinit:1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: be-v2
+  labels:
+    type: be
+    version: v2
+spec:
+  replicas: 0
+  template:
+    metadata:
+      labels:
+        app: be
+        version: v2
+    spec:
+      containers:
+      - name: be-container
+        image: salrashid123/istioinit:2
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
