@@ -53,6 +53,10 @@ docker push your_dockerhub_id/istioinit:1
 docker push your_dockerhub_id/istioinit:2
 ```
 
+To give you a sense of the differences between a regular GKE specification yaml vs. one modified for istio, you can compare:
+- [all-istio.yaml](all-istio.yaml)  vs [all-gke.yaml](all-gke.yaml)
+(review Ingress config, etc)
+
 ## Lets get started
 
 ### Create a GKE Cluster
