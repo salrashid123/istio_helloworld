@@ -27,12 +27,12 @@ NodeJS in a Dockerfile...something really minimal.  You can find the entire sour
 
 The endpoints on this app are as such:
 
-- '/':  Does nothing;
-- '/varz':  Returns all the environment variables on the current Pod
-- '/version': Returns just the "process.env.VER" variable that was set on the Deployment
-- '/backend': Return the nodename, pod name.  Designed to only get called as if the applciation running is a 'backend' 
-- '/hostz':  Does a DNS SRV lookup for the 'backend' and makes an http call to its '/backend', endpoint
-- '/requestz':  Makes an HTTP fetch for three external URLs (used to show egress rules)
+- ```/```:  Does nothing;
+- ```/varz```:  Returns all the environment variables on the current Pod
+- ```/version```: Returns just the "process.env.VER" variable that was set on the Deployment
+- ```/backend```: Return the nodename, pod name.  Designed to only get called as if the applciation running is a 'backend' 
+- ```/hostz```:  Does a DNS SRV lookup for the 'backend' and makes an http call to its '/backend', endpoint
+- ```/requestz```:  Makes an HTTP fetch for three external URLs (used to show egress rules)
 
 
 I build and uploaded this app to dockerhub at
@@ -59,42 +59,58 @@ To give you a sense of the differences between a regular GKE specification yaml 
 
 ## Lets get started
 
-### Create a GKE Cluster
+### Create a 1.9+ GKE Cluster and Bootstrap Istio
 
-I'm assuming you have a GCP account setup with billing enabled...so lets setup an GKE Alpha Instance (to allow for automatic sidecar Inejection as of 1/28/18)
-
-```
-gcloud container  clusters create cluster-1 --zone us-central1-a   --enable-kubernetes-alpha --num-nodes 3 --scopes "https://www.googleapis.com/auth/logging.write","https://www.googleapis.com/auth/monitoring","https://www.googleapis.com/auth/trace.append","https://www.googleapis.com/auth/userinfo.email" --enable-cloud-logging --enable-cloud-monitoring
-```
-
-Verify the cluster is running and get the current credentials (which should be already set anyway)
-```
-gcloud container clusters list
-gcloud container clusters get-credentials cluster-1
-```
-
-### Bootstrap  and install istio
-
-
-Set the Role specification sper the current install instructions:
-
-```
-kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
-```
-
-THen download istio 0.3.0 (latest at this time) and deploy the components
 
 ```bash
-wget https://github.com/istio/istio/releases/download/0.3.0/istio-0.3.0-linux.tar.gz
 
-cd istio-0.3.0/
+gcloud container  clusters create cluster-1     --cluster-version=1.9.2-gke.1  --zone us-central1-a  --num-nodes 3
+gcloud container clusters list
+gcloud container clusters get-credentials cluster-1
+
+kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
+
+wget https://github.com/istio/istio/releases/download/0.5.0/istio-0.5.0-linux.tar.gz
+
+tar xvf istio-0.5.0-linux.tar.gz 
+cd istio-0.5.0/
 
 kubectl create -f install/kubernetes/istio.yaml
-kubectl create -f install/kubernetes/istio-initializer.yaml
-kubectl create -f install/kubernetes/addons/prometheus.yaml
-kubectl create -f install/kubernetes/addons/grafana.yaml
-kubectl create -f install/kubernetes/addons/servicegraph.yaml
-kubectl create -f install/kubernetes/addons/zipkin.yaml
+
+
+curl  https://raw.githubusercontent.com/istio/istio/master/install/kubernetes/webhook-create-signed-cert.sh -o ./install/kubernetes/webhook-create-signed-cert.sh
+curl  https://raw.githubusercontent.com/istio/istio/master/install/kubernetes/webhook-patch-ca-bundle.sh -o ./install/kubernetes/webhook-patch-ca-bundle.sh
+
+chmod u+x ./install/kubernetes/webhook-create-signed-cert.sh
+chmod u+x ./install/kubernetes/webhook-patch-ca-bundle.sh
+
+./install/kubernetes/webhook-create-signed-cert.sh \
+    --service istio-sidecar-injector \
+    --namespace istio-system \
+    --secret sidecar-injector-certs
+
+kubectl apply -f install/kubernetes/istio-sidecar-injector-configmap-release.yaml
+
+
+cat install/kubernetes/istio-sidecar-injector.yaml | \
+     ./install/kubernetes/webhook-patch-ca-bundle.sh > \
+     install/kubernetes/istio-sidecar-injector-with-ca-bundle.yaml
+
+kubectl apply --filename=install/kubernetes/istio-sidecar-injector-with-ca-bundle.yaml
+
+kubectl -n istio-system get deployment -listio=sidecar-injector
+
+kubectl label namespace default istio-injection=enabled
+
+kubectl get namespace -L istio-injection
+
+kubectl apply -f install/kubernetes/addons/prometheus.yaml
+kubectl apply -f install/kubernetes/addons/grafana.yaml
+kubectl apply -f install/kubernetes/addons/zipkin.yaml
+
+# see: https://github.com/istio/issues/issues/179
+sed -i 's/0.5.0/0.3.0/g' install/kubernetes/addons/servicegraph.yaml
+kubectl apply -f install/kubernetes/addons/servicegraph.yaml
 ```
 
 
@@ -103,41 +119,60 @@ kubectl create -f install/kubernetes/addons/zipkin.yaml
 ```bash
 $ kubectl get no,po,deployments,svc -n istio-system
 NAME                                          STATUS    ROLES     AGE       VERSION
-no/gke-cluster-1-default-pool-94718a04-6w2f   Ready     <none>    1h        v1.7.11-gke.1
-no/gke-cluster-1-default-pool-94718a04-cphx   Ready     <none>    1h        v1.7.11-gke.1
-no/gke-cluster-1-default-pool-94718a04-lrb5   Ready     <none>    1h        v1.7.11-gke.1
+no/gke-cluster-1-default-pool-dc9b4c15-43p7   Ready     <none>    8m        v1.9.2-gke.1
+no/gke-cluster-1-default-pool-dc9b4c15-rhpc   Ready     <none>    8m        v1.9.2-gke.1
+no/gke-cluster-1-default-pool-dc9b4c15-wc07   Ready     <none>    8m        v1.9.2-gke.1
 
-NAME                                    READY     STATUS    RESTARTS   AGE
-po/grafana-2369932619-dkwbc             1/1       Running   0          2m
-po/istio-ca-191975193-dstl3             1/1       Running   0          2m
-po/istio-ingress-3924138486-hfkx4       1/1       Running   0          2m
-po/istio-initializer-2169589188-zj6mx   1/1       Running   0          2m
-po/istio-mixer-333075648-6f8mf          3/3       Running   0          2m
-po/istio-pilot-4226036077-7v30m         2/2       Running   0          2m
-po/prometheus-168775884-5w6kp           1/1       Running   0          2m
-po/servicegraph-2857261069-s22q1        1/1       Running   0          2m
-po/zipkin-3660596538-qqrgd              1/1       Running   0          2m
+NAME                                         READY     STATUS    RESTARTS   AGE
+po/grafana-6585bdf64c-b5k27                  1/1       Running   0          2m
+po/istio-ca-7876b944bc-45r6z                 1/1       Running   0          3m
+po/istio-ingress-d8d5fdc86-ll8wx             1/1       Running   0          3m
+po/istio-mixer-65bb55df98-zqrx4              3/3       Running   0          3m
+po/istio-pilot-5cb545f47c-cs6qh              2/2       Running   0          3m
+po/istio-sidecar-injector-6bb584c47d-z7v9s   1/1       Running   0          2m
+po/prometheus-5db8cc75f8-pm9tz               1/1       Running   0          2m
+po/servicegraph-74b978ff9c-dt7q9             1/1       Running   0          11s
+po/zipkin-7499985f56-spcz2                   1/1       Running   0          2m
 
-NAME                       DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deploy/grafana             1         1         1            1           2m
-deploy/istio-ca            1         1         1            1           2m
-deploy/istio-ingress       1         1         1            1           2m
-deploy/istio-initializer   1         1         1            1           2m
-deploy/istio-mixer         1         1         1            1           2m
-deploy/istio-pilot         1         1         1            1           2m
-deploy/prometheus          1         1         1            1           2m
-deploy/servicegraph        1         1         1            1           2m
-deploy/zipkin              1         1         1            1           2m
+NAME                            DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deploy/grafana                  1         1         1            1           2m
+deploy/istio-ca                 1         1         1            1           3m
+deploy/istio-ingress            1         1         1            1           3m
+deploy/istio-mixer              1         1         1            1           3m
+deploy/istio-pilot              1         1         1            1           3m
+deploy/istio-sidecar-injector   1         1         1            1           2m
+deploy/prometheus               1         1         1            1           2m
+deploy/servicegraph             1         1         1            1           2m
+deploy/zipkin                   1         1         1            1           2m
 
-NAME                TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                                                            AGE
-svc/grafana         ClusterIP      10.11.247.251   <none>          3000/TCP                                                           2m
-svc/istio-ingress   LoadBalancer   10.11.246.233   35.192.27.246   80:31964/TCP,443:32206/TCP                                         2m
-svc/istio-mixer     ClusterIP      10.11.240.230   <none>          9091/TCP,15004/TCP,9093/TCP,9094/TCP,9102/TCP,9125/UDP,42422/TCP   2m
-svc/istio-pilot     ClusterIP      10.11.243.181   <none>          15003/TCP,443/TCP                                                  2m
-svc/prometheus      ClusterIP      10.11.249.122   <none>          9090/TCP                                                           2m
-svc/servicegraph    ClusterIP      10.11.253.1     <none>          8088/TCP                                                           2m
-svc/zipkin          ClusterIP      10.11.243.107   <none>          9411/TCP                                                           2m
+NAME                         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                                                            AGE
+svc/grafana                  ClusterIP      10.11.245.239   <none>          3000/TCP                                                           2m
+svc/istio-ingress            LoadBalancer   10.11.242.247   35.225.70.148   80:30348/TCP,443:31498/TCP                                         3m
+svc/istio-mixer              ClusterIP      10.11.241.182   <none>          9091/TCP,15004/TCP,9093/TCP,9094/TCP,9102/TCP,9125/UDP,42422/TCP   3m
+svc/istio-pilot              ClusterIP      10.11.248.18    <none>          15003/TCP,8080/TCP,9093/TCP,443/TCP                                3m
+svc/istio-sidecar-injector   ClusterIP      10.11.244.164   <none>          443/TCP                                                            2m
+svc/prometheus               ClusterIP      10.11.253.248   <none>          9090/TCP                                                           2m
+svc/servicegraph             ClusterIP      10.11.241.160   <none>          8088/TCP                                                           2m
+svc/zipkin                   ClusterIP      10.11.248.109   <none>          9411/TCP                                                           2m
 ```
+
+
+### Kubernetes Dashboard
+
+You can view the native kubernetes dashboard now.  In 1.9, a couple more steps are required:
+
+```
+kubectl create clusterrolebinding kube-dashboard-admin --clusterrole=cluster-admin --serviceaccount=kube-system:kubernetes-dashboard
+kubectl describe serviceaccount  kubernetes-dashboard  -n kube-system
+```
+Insert the token from above
+kubectl describe secret <<<YOUR-kubernetes-dashboard-token>>>  -n kube-system
+```
+
+Then:  ```kubectl proxy```
+
+Finally goto ```http://localhost:8001/ui``` and insert the token here
+
 
 ### Setup some tunnels to each of the services:
 
@@ -735,10 +770,12 @@ Notice that only one of the hosts worked over SSL worked
 e## Delete istio and the cluster
 
 ```
+ kubectl label namespace default istio-injection-
  kubectl delete -f install/kubernetes/addons/zipkin.yaml
  kubectl delete -f install/kubernetes/addons/servicegraph.yaml
  kubectl delete -f install/kubernetes/addons/grafana.yaml
  kubectl delete -f install/kubernetes/addons/prometheus.yaml
- kubectl delete -f install/kubernetes/istio-initializer.yaml
+ kubectl delete -f install/kubernetes/istio-sidecar-injector-configmap-release.yaml
+ kubectl delete --filename=install/kubernetes/istio-sidecar-injector-with-ca-bundle.yaml
  kubectl delete -f install/kubernetes/istio.yaml
 ```
