@@ -107,9 +107,6 @@ kubectl get namespace -L istio-injection
 kubectl apply -f install/kubernetes/addons/prometheus.yaml
 kubectl apply -f install/kubernetes/addons/grafana.yaml
 kubectl apply -f install/kubernetes/addons/zipkin.yaml
-
-# see: https://github.com/istio/issues/issues/179
-sed -i 's/0.5.0/0.3.0/g' install/kubernetes/addons/servicegraph.yaml
 kubectl apply -f install/kubernetes/addons/servicegraph.yaml
 ```
 
