@@ -103,12 +103,34 @@ kubectl -n istio-system get deployment -listio=sidecar-injector
 kubectl label namespace default istio-injection=enabled
 
 kubectl get namespace -L istio-injection
+```
 
+Now its time to modify some files as the release cut for ```0.5.1``` is [missing a config](https://github.com/istio/istio/issues/3149#issuecomment-365431877) for prometheus:
+
+so.. edit
+
+```install/kubernetes/addons/prometheus.yaml```
+
+go to line 245 and change to add the ```namespace: istio-system``` part
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace:  istio-system
+```
+
+
+Once that is done, complete the install for addon:
+
+```
 kubectl apply -f install/kubernetes/addons/prometheus.yaml
 kubectl apply -f install/kubernetes/addons/grafana.yaml
 kubectl apply -f install/kubernetes/addons/zipkin.yaml
 kubectl apply -f install/kubernetes/addons/servicegraph.yaml
 ```
+
 
 
 ### Make sure the Istio installation is ready
