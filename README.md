@@ -70,10 +70,10 @@ gcloud container clusters get-credentials cluster-1
 
 kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
 
-wget https://github.com/istio/istio/releases/download/0.5.0/istio-0.5.0-linux.tar.gz
+wget https://github.com/istio/istio/releases/download/0.5.1/istio-0.5.1-linux.tar.gz
 
-tar xvf istio-0.5.0-linux.tar.gz 
-cd istio-0.5.0/
+tar xvf istio-0.5.1-linux.tar.gz 
+cd istio-0.5.1/
 
 kubectl create -f install/kubernetes/istio.yaml
 
@@ -166,10 +166,12 @@ kubectl create clusterrolebinding kube-dashboard-admin --clusterrole=cluster-adm
 kubectl describe serviceaccount  kubernetes-dashboard  -n kube-system
 ```
 Insert the token from above
-kubectl describe secret <<<YOUR-kubernetes-dashboard-token>>>  -n kube-system
+
+```
+kubectl describe secret YOUR-kubernetes-dashboard-token  -n kube-system
 ```
 
-Then:  ```kubectl proxy```
+Then: run ```kubectl proxy```
 
 Finally goto ```http://localhost:8001/ui``` and insert the token here
 
