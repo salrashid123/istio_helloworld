@@ -68,21 +68,17 @@ gcloud container  clusters create cluster-1     --cluster-version=1.9.2-gke.1  -
 gcloud container clusters list
 gcloud container clusters get-credentials cluster-1
 
+kubectl api-versions | grep admissionregistration
+
 kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
 
-wget https://github.com/istio/istio/releases/download/0.5.1/istio-0.5.1-linux.tar.gz
+wget https://github.com/istio/istio/releases/download/0.6.0/istio-0.6.0-linux.tar.gz
 
-tar xvf istio-0.5.1-linux.tar.gz 
-cd istio-0.5.1/
+tar xvf istio-0.6.0-linux.tar.gz 
+cd istio-0.6.0/
 
 kubectl create -f install/kubernetes/istio.yaml
 
-
-curl  https://raw.githubusercontent.com/istio/istio/master/install/kubernetes/webhook-create-signed-cert.sh -o ./install/kubernetes/webhook-create-signed-cert.sh
-curl  https://raw.githubusercontent.com/istio/istio/master/install/kubernetes/webhook-patch-ca-bundle.sh -o ./install/kubernetes/webhook-patch-ca-bundle.sh
-
-chmod u+x ./install/kubernetes/webhook-create-signed-cert.sh
-chmod u+x ./install/kubernetes/webhook-patch-ca-bundle.sh
 
 ./install/kubernetes/webhook-create-signed-cert.sh \
     --service istio-sidecar-injector \
@@ -105,24 +101,7 @@ kubectl label namespace default istio-injection=enabled
 kubectl get namespace -L istio-injection
 ```
 
-Now its time to modify some files as the release cut for ```0.5.1``` is [missing a config](https://github.com/istio/istio/issues/3149#issuecomment-365431877) for prometheus:
-
-so.. edit
-
-```install/kubernetes/addons/prometheus.yaml```
-
-go to line 245 and change to add the ```namespace: istio-system``` part
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: prometheus
-  namespace:  istio-system
-```
-
-
-Once that is done, complete the install for addon:
+Now its time to install for addon:
 
 ```
 kubectl apply -f install/kubernetes/addons/prometheus.yaml
