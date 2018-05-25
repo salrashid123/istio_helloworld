@@ -64,18 +64,18 @@ To give you a sense of the differences between a regular GKE specification yaml 
 
 ```bash
 
-gcloud container  clusters create cluster-1     --cluster-version=1.9.2-gke.1  --zone us-central1-a  --num-nodes 3
+gcloud container  clusters create cluster-1     --cluster-version=1.9.7-gke.0  --zone us-central1-a  --num-nodes 3
 gcloud container clusters list
-gcloud container clusters get-credentials cluster-1
+gcloud container clusters get-credentials cluster-1 --zone us-central1-a
 
 kubectl api-versions | grep admissionregistration
 
 kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
 
-wget https://github.com/istio/istio/releases/download/0.6.0/istio-0.6.0-linux.tar.gz
+wget https://github.com/istio/istio/releases/download/0.7.0/istio-0.7.0-linux.tar.gz
 
-tar xvf istio-0.6.0-linux.tar.gz 
-cd istio-0.6.0/
+tar xvf istio-0.7.0-linux.tar.gz 
+cd istio-0.7.0/
 
 kubectl create -f install/kubernetes/istio.yaml
 
@@ -117,20 +117,20 @@ kubectl apply -f install/kubernetes/addons/servicegraph.yaml
 ```bash
 $ kubectl get no,po,deployments,svc -n istio-system
 NAME                                          STATUS    ROLES     AGE       VERSION
-no/gke-cluster-1-default-pool-dc9b4c15-43p7   Ready     <none>    8m        v1.9.2-gke.1
-no/gke-cluster-1-default-pool-dc9b4c15-rhpc   Ready     <none>    8m        v1.9.2-gke.1
-no/gke-cluster-1-default-pool-dc9b4c15-wc07   Ready     <none>    8m        v1.9.2-gke.1
+no/gke-cluster-1-default-pool-cc917931-hxtx   Ready     <none>    6m        v1.9.7-gke.0
+no/gke-cluster-1-default-pool-cc917931-kdcg   Ready     <none>    6m        v1.9.7-gke.0
+no/gke-cluster-1-default-pool-cc917931-xv32   Ready     <none>    6m        v1.9.7-gke.0
 
 NAME                                         READY     STATUS    RESTARTS   AGE
-po/grafana-6585bdf64c-b5k27                  1/1       Running   0          2m
-po/istio-ca-7876b944bc-45r6z                 1/1       Running   0          3m
-po/istio-ingress-d8d5fdc86-ll8wx             1/1       Running   0          3m
-po/istio-mixer-65bb55df98-zqrx4              3/3       Running   0          3m
-po/istio-pilot-5cb545f47c-cs6qh              2/2       Running   0          3m
-po/istio-sidecar-injector-6bb584c47d-z7v9s   1/1       Running   0          2m
-po/prometheus-5db8cc75f8-pm9tz               1/1       Running   0          2m
-po/servicegraph-74b978ff9c-dt7q9             1/1       Running   0          11s
-po/zipkin-7499985f56-spcz2                   1/1       Running   0          2m
+po/grafana-5cf49d7546-4jbtj                  1/1       Running   0          2m
+po/istio-ca-6ccdfb9986-crmss                 1/1       Running   0          3m
+po/istio-ingress-dcbc79cdd-rrg5z             1/1       Running   0          3m
+po/istio-mixer-779454485-6rbkz               3/3       Running   0          3m
+po/istio-pilot-5d54d856b6-mzkl4              2/2       Running   0          3m
+po/istio-sidecar-injector-56bc694c8c-rj2h2   1/1       Running   0          3m
+po/prometheus-cf8456855-jl6bk                1/1       Running   0          2m
+po/servicegraph-7d64f47f6d-rt7bj             1/1       Running   0          2m
+po/zipkin-7988c559b7-7v9sd                   1/1       Running   0          2m
 
 NAME                            DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
 deploy/grafana                  1         1         1            1           2m
@@ -138,20 +138,20 @@ deploy/istio-ca                 1         1         1            1           3m
 deploy/istio-ingress            1         1         1            1           3m
 deploy/istio-mixer              1         1         1            1           3m
 deploy/istio-pilot              1         1         1            1           3m
-deploy/istio-sidecar-injector   1         1         1            1           2m
+deploy/istio-sidecar-injector   1         1         1            1           3m
 deploy/prometheus               1         1         1            1           2m
 deploy/servicegraph             1         1         1            1           2m
 deploy/zipkin                   1         1         1            1           2m
 
-NAME                         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                                                            AGE
-svc/grafana                  ClusterIP      10.11.245.239   <none>          3000/TCP                                                           2m
-svc/istio-ingress            LoadBalancer   10.11.242.247   35.225.70.148   80:30348/TCP,443:31498/TCP                                         3m
-svc/istio-mixer              ClusterIP      10.11.241.182   <none>          9091/TCP,15004/TCP,9093/TCP,9094/TCP,9102/TCP,9125/UDP,42422/TCP   3m
-svc/istio-pilot              ClusterIP      10.11.248.18    <none>          15003/TCP,8080/TCP,9093/TCP,443/TCP                                3m
-svc/istio-sidecar-injector   ClusterIP      10.11.244.164   <none>          443/TCP                                                            2m
-svc/prometheus               ClusterIP      10.11.253.248   <none>          9090/TCP                                                           2m
-svc/servicegraph             ClusterIP      10.11.241.160   <none>          8088/TCP                                                           2m
-svc/zipkin                   ClusterIP      10.11.248.109   <none>          9411/TCP                                                           2m
+NAME                         TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)                                                             AGE
+svc/grafana                  ClusterIP      10.11.243.111   <none>           3000/TCP                                                            2m
+svc/istio-ingress            LoadBalancer   10.11.240.239   35.192.159.161   80:30077/TCP,443:32459/TCP                                          3m
+svc/istio-mixer              ClusterIP      10.11.245.106   <none>           9091/TCP,15004/TCP,9093/TCP,9094/TCP,9102/TCP,9125/UDP,42422/TCP    3m
+svc/istio-pilot              ClusterIP      10.11.252.21    <none>           15003/TCP,15005/TCP,15007/TCP,15010/TCP,8080/TCP,9093/TCP,443/TCP   3m
+svc/istio-sidecar-injector   ClusterIP      10.11.242.134   <none>           443/TCP                                                             3m
+svc/prometheus               ClusterIP      10.11.254.137   <none>           9090/TCP                                                            2m
+svc/servicegraph             ClusterIP      10.11.253.245   <none>           8088/TCP                                                            2m
+svc/zipkin                   ClusterIP      10.11.250.207   <none>           9411/TCP                                                            2m
 ```
 
 
@@ -186,7 +186,7 @@ kubectl port-forward -n istio-system $(kubectl get pod -n istio-system -l app=zi
 ```
 
 Open up a browser (three tabs) and go to:
-- ServiceGraph http://localhost:8088/dotviz   
+- ServiceGraph http://localhost:8088/dotviz
 - Grafana http://localhost:3000/dashboard/db/istio-dashboard
 - Zipkin http://localhost:9411
 
@@ -211,30 +211,30 @@ $ kubectl create -f all-istio.yaml
 $ kubectl get po,deployments,svc,ing 
 
 NAME                           READY     STATUS    RESTARTS   AGE
-po/be-v1-16151855-56kcg        2/2       Running   0          1m
-po/myapp-v1-2518991625-g66kn   2/2       Running   0          1m
+po/be-v1-5bc4cc7f6b-lqqrk      2/2       Running   0          1m
+po/myapp-v1-5bcff7b6d6-mrm9p   2/2       Running   0          2m
 
 NAME              DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deploy/be-v1      1         1         1            1           1m
-deploy/be-v2      0         0         0            0           1m
-deploy/myapp-v1   1         1         1            1           1m
-deploy/myapp-v2   0         0         0            0           1m
+deploy/be-v1      1         1         1            1           2m
+deploy/be-v2      0         0         0            0           2m
+deploy/myapp-v1   1         1         1            1           2m
+deploy/myapp-v2   0         0         0            0           2m
 
-NAME             TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-svc/be           ClusterIP   10.11.246.235   <none>        8080/TCP   1m
-svc/kubernetes   ClusterIP   10.11.240.1     <none>        443/TCP    1h
-svc/myapp        ClusterIP   10.11.249.144   <none>        8080/TCP   1m
+NAME             TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+svc/be           ClusterIP   10.11.240.44   <none>        8080/TCP   2m
+svc/kubernetes   ClusterIP   10.11.240.1    <none>        443/TCP    11m
+svc/myapp        ClusterIP   10.11.250.95   <none>        8080/TCP   2m
 
-NAME          HOSTS     ADDRESS         PORTS     AGE
-ing/gateway   *         35.192.27.246   80, 443   2m
+NAME          HOSTS     ADDRESS          PORTS     AGE
+ing/gateway   *         35.192.159.161   80, 443   2m
 ```
 
 Notice that each pod has two containers:  one is from isto, the other is the applicaiton itself (this is because we have automatic sidecar injection enabled).
 
-Also note the Ingress IP address (in my case, its ```35.192.27.246```).  Set this as the GATEWAY_IP
+Also note the Ingress IP address (in my case, its ```35.192.159.161```).  Set this as the GATEWAY_IP
 
 ```
-export GATEWAY_IP=35.192.27.246
+export GATEWAY_IP=35.192.159.161
 ```
 
 ### Send Traffic 
@@ -263,6 +263,12 @@ A couple of (emperical) notes:
 - Impact of liveness probe:
 
 If you uncomment the following in the YAML file and run the whole test again from scratch, Istio's ServiceGraph sees the liveness probe itself..
+
+(> Note:  you don't have to run this step.  Once you uncomment and send some traffic, the service graphs will continue to render and display historic
+traffic it sees (i don't know how to regenerate it from scratch; if you do, submit an issue please!).
+
+If you do choose to run this, please delete the istio cluster and recreate it...otherwise, just take my word and skip this!)
+
 ```yaml
         - containerPort: 8080
         livenessProbe:
@@ -287,13 +293,13 @@ deploy/be-v2      0         0         0            0           25s
 deploy/myapp-v1   2         2         2            2           25s
 deploy/myapp-v2   0         0         0            0           25s
 
-NAME             TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-svc/be           ClusterIP   10.11.243.156   <none>        8080/TCP   25s
-svc/kubernetes   ClusterIP   10.11.240.1     <none>        443/TCP    1h
-svc/myapp-srv    ClusterIP   10.11.251.176   <none>        8080/TCP   25s
+NAME             TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+svc/be           ClusterIP   10.11.240.44   <none>        8080/TCP   2m
+svc/kubernetes   ClusterIP   10.11.240.1    <none>        443/TCP    11m
+svc/myapp        ClusterIP   10.11.250.95   <none>        8080/TCP   2m
 
 NAME          HOSTS     ADDRESS         PORTS     AGE
-ing/gateway   *         35.192.27.246  80, 443   25s
+ing/gateway   *         35.192.159.161  80, 443   25s
 ```
 ![alt text](images/istio_fe_liveness.png)
 
@@ -372,12 +378,12 @@ deploy/myapp-v1   2         2         2            2           33m
 deploy/myapp-v2   0         0         0            0           33m
 
 NAME             TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-svc/be           ClusterIP   10.11.247.0    <none>        8080/TCP   33m
-svc/kubernetes   ClusterIP   10.11.240.1    <none>        443/TCP    3h
-svc/myapp-srv    ClusterIP   10.11.250.32   <none>        8080/TCP   33m
+svc/be           ClusterIP   10.11.240.44   <none>        8080/TCP   2m
+svc/kubernetes   ClusterIP   10.11.240.1    <none>        443/TCP    11m
+svc/myapp        ClusterIP   10.11.250.95   <none>        8080/TCP   2m
 
 NAME          HOSTS     ADDRESS         PORTS     AGE
-ing/gateway   *         35.192.27.246   80, 443   33m
+ing/gateway   *         35.192.159.161   80, 443   33m
 ```
 
 .you'll see serviceGraph mismatches service graph matches to ```myapp-srv``` displays the target service itself.
@@ -412,10 +418,10 @@ Note both ServiceGraph and Grafana shows both frontend and backend service telem
 
 ### Selective Traffic (route-rule-all-v1.yaml)
 
-First edit ```all-istio.yaml``` file and set each Deployment for (myapp,be) for both (v1,v2) to have one replica each
+First edit ```all-istio.yaml``` file and set each Deployment for (myapp,be) for both (v1,v2) to have one ```replicas: 1``` each
 
 ```
-d$  kubectl get po,deployments,svc,ing 
+$  kubectl get po,deployments,svc,ing 
 NAME                           READY     STATUS    RESTARTS   AGE
 po/be-v1-16151855-3vs67        2/2       Running   0          23s
 po/be-v2-4191276971-rqv5q      2/2       Running   0          23s
@@ -484,7 +490,7 @@ spec:
 THen setup the config with istioctl:
 
 ```
-istioctl create -f route-rule-all-v1.yaml 
+istio-<version>/bin/istioctl create -f route-rule-all-v1.yaml 
 Created config route-rule/default/fe-v1-be-v2 at revision 30014
 Created config route-rule/default/myapp-v1 at revision 30016
 ```
@@ -493,17 +499,19 @@ After sending traffic to check which backend system was called ```/hostz```, we 
 ```be-v2-*```
 
 ```
-$ curl -k https://$GATEWAY_IP/hostz
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]
+$ for i in {1..100}; do curl -k https://$GATEWAY_IP/hostz; printf "\n"; done
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
 ```
 
 and on the frontend version is always one.
 ```
-curl -k https://$GATEWAY_IP/version
+$ for i in {1..100}; do curl -k https://$GATEWAY_IP/version; printf "\n"; done
 1
 1
 1
@@ -537,15 +545,17 @@ and backend is responses comes from both be-v1 and be-v2
 ![alt text](images/grafana_v1v2_v1v2.png)
 
 ```
-$ curl -k https://$GATEWAY_IP/hostz
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v1-16151855-3vs67]    node: [gke-cluster-1-default-pool-94718a04-cphx]","statusCode":200}]
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v1-16151855-3vs67]    node: [gke-cluster-1-default-pool-94718a04-cphx]","statusCode":200}]
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-4191276971-rqv5q]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]
-[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v1-16151855-3vs67]    node: [gke-cluster-1-default-pool-94718a04-cphx]","statusCode":200}]
+$ for i in {1..100}; do curl -k https://$GATEWAY_IP/hostz; printf "\n"; done
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v1-5bc4cc7f6b-qg8mz]    node: [gke-cluster-1-default-pool-cc917931-hxtx]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v1-5bc4cc7f6b-qg8mz]    node: [gke-cluster-1-default-pool-cc917931-hxtx]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+[{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v2-9dd4cf9b8-7fbbd]    node: [gke-cluster-1-default-pool-cc917931-xv32]","statusCode":200}]
+
 ```
 
-
+> As before, the service graph will inherit the previous tests/scenarios so your graphs will not be the same unless you regen.
 
 
 ### Route Path (route-rule-path.yaml)
@@ -581,10 +591,35 @@ spec:
 
 ```
 
+
 The output below shows before and after applying the route rule.  The '/version' endpoint returns the frontend's pod's version number
+so first run
+
 ```
-$ for i in {1..1000}; do curl -k https://$GATEWAY_IP/version; done
-2121212121212121212121212121111111111111111111111111111111111111111111111111
+$ for i in {1..100}; do curl -k https://$GATEWAY_IP/version; printf "\n"; done
+1
+2
+1
+2
+1
+2
+```
+
+then apply the config:
+
+```
+$ istio-0.<version>/bin/istioctl create -f route-rule-path.yaml
+```
+
+you'll see traffic to only 1
+```
+$ for i in {1..100}; do curl -k https://$GATEWAY_IP/version; printf "\n"; done
+1
+1
+1
+1
+1
+1
 ```
 
 ### Destination Rules

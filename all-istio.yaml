@@ -188,7 +188,7 @@ metadata:
     type: be
     version: v2
 spec:
-  replicas: 0 
+  replicas: 0
   template:
     metadata:
       labels:
