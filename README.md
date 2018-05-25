@@ -239,9 +239,11 @@ export GATEWAY_IP=35.192.159.161
 
 ### Send Traffic 
 
+This section shows basic user->frontend traffic and how serviceGrpah and Grafana consoles:
+
 #### Frontend only
 
-(send traffic with the ip; the /varz endpoint will send traffic from frontend service only)
+So...lets send traffic with the ip; (the /varz endpoint will send traffic to the frontend service only)
 
 ```bash
 for i in {1..1000}; do curl -k -o /dev/null -s -w "%{http_code}\n" https://$GATEWAY_IP/varz; done
@@ -249,7 +251,7 @@ for i in {1..1000}; do curl -k -o /dev/null -s -w "%{http_code}\n" https://$GATE
 
 You should see '200' ok  (try it out in a browser too to see the env/variables set in the cluster)
 
-You should also see:
+You should also see on servicegraph:
 
 ![alt text](images/istio_fe.png)
 
@@ -260,7 +262,7 @@ and
 
 A couple of (emperical) notes:
 
-- Impact of liveness probe:
+#### Impact of liveness probe:
 
 If you uncomment the following in the YAML file and run the whole test again from scratch, Istio's ServiceGraph sees the liveness probe itself..
 
@@ -304,10 +306,12 @@ ing/gateway   *         35.192.159.161  80, 443   25s
 ![alt text](images/istio_fe_liveness.png)
 
 
-- Ingress-Service-Deployment Labels
+#### Ingress-Service-Deployment Labels
 
-Note that the service and deployment labels are all precisely the same ("app=myapp").  More accurately, if you just set the ingress->service names to 
+Also note that the service and deployment labels are all precisely the same ("app=myapp").  More accurately, if you just set the ingress->service names to 
 ```serviceName:my-srv``` as sown below:
+
+(as above, this isn't a step you need to follow in this tutorial; its just something i wanted to note)
 
 Ingress
 
@@ -386,7 +390,7 @@ NAME          HOSTS     ADDRESS         PORTS     AGE
 ing/gateway   *         35.192.159.161   80, 443   33m
 ```
 
-.you'll see serviceGraph mismatches service graph matches to ```myapp-srv``` displays the target service itself.
+.you'll see serviceGraph mismatches service graph matches to ```myapp-srv``` and displays the target service itself.
 
 
 ![alt text](images/istio_srv_label.png)
@@ -400,7 +404,9 @@ ing/gateway   *         35.192.159.161   80, 443   33m
 
 Ok, we'll use ```app=myapp``` and ```serverName=myapp``` to be all consistent
 
-To send requests to the frontend and backend, we'll use the applications ```/hostz``` endpoint.
+now the next step in th exercise:
+
+to send requests to ```user-->frontend--> backend```;  we'll use the applications ```/hostz``` endpoint to do that.
 
 
 ```
@@ -415,6 +421,8 @@ Note both ServiceGraph and Grafana shows both frontend and backend service telem
 ![alt text](images/grafana_be.png)
 
 ## Route Control
+
+This section details how to slectively send traffic to service ```versions```
 
 ### Selective Traffic (route-rule-all-v1.yaml)
 
@@ -560,6 +568,8 @@ $ for i in {1..100}; do curl -k https://$GATEWAY_IP/hostz; printf "\n"; done
 
 ### Route Path (route-rule-path.yaml)
 
+Now lets setup a more selective route based on a specific path in the URI:
+
 - Route requests to myapp where path=/version to only v1
   A request to http://gateway_ip/version will go to v1 only
 
@@ -590,6 +600,13 @@ spec:
     weight: 0    
 
 ```
+
+Once you make this change, use ```istioctl``` to make the change happen
+
+```
+istio-<version>/bin/istioctl create -f route-rule-path.yaml
+```
+
 
 
 The output below shows before and after applying the route rule.  The '/version' endpoint returns the frontend's pod's version number
@@ -624,7 +641,8 @@ $ for i in {1..100}; do curl -k https://$GATEWAY_IP/version; printf "\n"; done
 
 ### Destination Rules
 
-Send all traffic round robin from myapp-v2 and scale that to just one replica:
+These rules sends all traffic round robin from ```myapp-v1``` round-robin to both version of the backend.
+Lets force ```myapp-v2``` to 0:
 
 ```yaml
 apiVersion: extensions/v1beta1
@@ -639,10 +657,8 @@ spec:
         app: myapp
         version: v2
 ```
+(make the change above to ```all-istio.yaml``` and apply the changes (using ```kubectl``` to scale the deployment down)
 
-```
-istioctl create -f destination-rule.yaml 
-```
 
 ```
 $  kubectl get po,deployments,svc,ing 
@@ -660,7 +676,7 @@ deploy/myapp-v2   0         0         0            0           29s
 ```
 
 
-and use the DestinationPolicy:
+now edit the DestinationPolicy:
 ```yaml
 apiVersion: config.istio.io/v1alpha2
 kind: DestinationPolicy
@@ -674,6 +690,12 @@ spec:
     name: be
   loadBalancing:
     name: ROUND_ROBIN
+```
+
+and enable the rule
+
+```
+istio-<version>/bin/istioctl create -f  destination-rule.yaml 
 ```
 
 - with myapp scaled to just one replica, ROUND_ROBIN, response is from v1 and v2 alternating:
@@ -693,7 +715,7 @@ $ for i in {1..1000}; do curl -k https://$GATEWAY_IP/hostz; done
 [
 ```
 
-- with myapp scaled to just one replica, RANDOM, response is from v1 and v2 random:
+Now change the ```destiation-rule.yaml```  to ```RANDOM``` and see response is from v1 and v2 random:
 ```bash
 $ for i in {1..1000}; do curl -k https://$GATEWAY_IP/hostz; done
 [{"url":"http://be.default.svc.cluster.local:8080/backend","body":"pod: [be-v1-16151855-r8hn1]    node: [gke-cluster-1-default-pool-94718a04-lrb5]","statusCode":200}]
