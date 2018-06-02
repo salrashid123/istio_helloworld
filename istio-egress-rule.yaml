@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: bbc-ext
+spec:
+  hosts:
+  - www.bbc.com
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTP
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: bbc-ext
+spec:
+  host: www.bbc.com
+  trafficPolicy:
+    tls:
+      mode: SIMPLE

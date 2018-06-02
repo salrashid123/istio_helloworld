@@ -1,0 +1,82 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: myapp-virtualservice
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - my-gateway
+  http:
+  - route:
+    - destination:
+        host: myapp.default.svc.cluster.local
+        subset: v1
+      weight: 100
+#    - destination:
+#        host: myapp.default.svc.cluster.local
+#        subset: v2
+#      weight: 10
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: myapp-destination
+spec:
+  host: myapp.default.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL  
+    loadBalancer:
+      simple: ROUND_ROBIN      
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2  
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: be-virtualservice
+spec:
+  gateways:
+  - mesh 
+  hosts:
+  - be.default.svc.cluster.local
+  http:
+  - match:
+    - sourceLabels:
+        app: myapp
+        version: v1 
+    route:      
+    - destination:
+        host: be.default.svc.cluster.local
+        subset: v2
+      weight: 100
+#  - route:
+#    - destination:
+#        host: be.default.svc.cluster.local
+#    weight: 0
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: be-destination
+spec:
+  host: be.default.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL  
+    loadBalancer:
+      simple: ROUND_ROBIN     
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
+---
