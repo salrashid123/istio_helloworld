@@ -15,7 +15,7 @@ i understand something is to rewrite sections and only those sections from the g
 - Grafana
 - Prometheus
 - SourceGraph
-- Zipkin
+- Jaeger
 - Route Control
 - Destination Rules
 - Egress Policies
@@ -86,7 +86,7 @@ helm template istio-0.8.0/install/kubernetes/helm/istio --name istio --namespace
    --set prometheus.enabled=true \
    --set servicegraph.enabled=true \
    --set grafana.enabled=true \
-   --set zipkin.enabled=true \
+   --set tracing.enabled=true \
    --set sidecar-injector.enabled=true \
    --set global.proxy.image=proxyv2 \
    --set global.mtls.enabled=true > istio.yaml
@@ -104,52 +104,57 @@ Verify this step by makeing sure all the ```Deployments``` are Available.
 ```bash
 $  kubectl get no,po,rc,svc,ing,deployment -n istio-system
 NAME                                          STATUS    ROLES     AGE       VERSION
-no/gke-cluster-1-default-pool-195daff5-5sfm   Ready     <none>    3m        v1.9.7-gke.1
-no/gke-cluster-1-default-pool-195daff5-6nfs   Ready     <none>    3m        v1.9.7-gke.1
-no/gke-cluster-1-default-pool-195daff5-r65j   Ready     <none>    3m        v1.9.7-gke.1
-no/gke-cluster-1-default-pool-195daff5-r8pl   Ready     <none>    3m        v1.9.7-gke.1
+no/gke-cluster-1-default-pool-e804e7ef-c5sd   Ready     <none>    4m        v1.9.7-gke.1
+no/gke-cluster-1-default-pool-e804e7ef-cxgq   Ready     <none>    4m        v1.9.7-gke.1
+no/gke-cluster-1-default-pool-e804e7ef-pf8c   Ready     <none>    4m        v1.9.7-gke.1
+no/gke-cluster-1-default-pool-e804e7ef-r14v   Ready     <none>    4m        v1.9.7-gke.1
 
 NAME                                           READY     STATUS    RESTARTS   AGE
-po/grafana-cd99bf478-5hc5f                     1/1       Running   0          1m
-po/istio-citadel-ff5696f6f-xdzhv               1/1       Running   0          1m
-po/istio-egressgateway-58d98d898c-94w2j        1/1       Running   0          1m
-po/istio-ingress-6fb78f687f-65hjf              1/1       Running   0          1m
-po/istio-ingressgateway-6bc7c7c4bc-p4tdm       1/1       Running   0          1m
-po/istio-pilot-6c5c6b586c-zrp48                1/2       Running   0          1m
-po/istio-policy-5c7fbb4b9f-dwql6               2/2       Running   0          1m
-po/istio-sidecar-injector-dbd67c88d-6dcg8      1/1       Running   0          1m
-po/istio-statsd-prom-bridge-6dbb7dcc7f-9k7wm   1/1       Running   0          1m
-po/istio-telemetry-54b5bf4847-44v89            2/2       Running   0          1m
-po/prometheus-586d95b8d9-lwrzd                 1/1       Running   0          1m
-po/servicegraph-6d86dfc6cb-kmmtl               1/1       Running   0          1m
+po/grafana-cd99bf478-8gswx                     1/1       Running   0          2m
+po/istio-citadel-ff5696f6f-tmn4z               1/1       Running   0          2m
+po/istio-egressgateway-58d98d898c-rbz6c        1/1       Running   0          2m
+po/istio-ingress-6fb78f687f-sf7xh              1/1       Running   0          2m
+po/istio-ingressgateway-6bc7c7c4bc-gjp6s       1/1       Running   0          2m
+po/istio-pilot-6c5c6b586c-8svn6                2/2       Running   0          2m
+po/istio-policy-5c7fbb4b9f-5jp4m               2/2       Running   0          2m
+po/istio-sidecar-injector-dbd67c88d-fj4kk      1/1       Running   0          2m
+po/istio-statsd-prom-bridge-6dbb7dcc7f-qfkz6   1/1       Running   0          2m
+po/istio-telemetry-54b5bf4847-4bqhd            2/2       Running   0          2m
+po/istio-tracing-67dbb5b89f-7ws5v              1/1       Running   0          2m
+po/prometheus-586d95b8d9-rn4br                 1/1       Running   0          2m
+po/servicegraph-6d86dfc6cb-trkzj               1/1       Running   0          2m
 
-NAME                           TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)                                                               AGE
-svc/grafana                    ClusterIP      10.11.245.163   <none>           3000/TCP                                                              1m
-svc/istio-citadel              ClusterIP      10.11.241.90    <none>           8060/TCP,9093/TCP                                                     1m
-svc/istio-egressgateway        ClusterIP      10.11.246.235   <none>           80/TCP,443/TCP                                                        1m
-svc/istio-ingress              LoadBalancer   10.11.244.184   35.202.206.104   80:32000/TCP,443:31620/TCP                                            1m
-svc/istio-ingressgateway       LoadBalancer   10.11.250.80    104.154.215.31   80:31380/TCP,443:31390/TCP,31400:31400/TCP                            1m
-svc/istio-pilot                ClusterIP      10.11.249.51    <none>           15003/TCP,15005/TCP,15007/TCP,15010/TCP,15011/TCP,8080/TCP,9093/TCP   1m
-svc/istio-policy               ClusterIP      10.11.255.150   <none>           9091/TCP,15004/TCP,9093/TCP                                           1m
-svc/istio-sidecar-injector     ClusterIP      10.11.254.122   <none>           443/TCP                                                               1m
-svc/istio-statsd-prom-bridge   ClusterIP      10.11.243.178   <none>           9102/TCP,9125/UDP                                                     1m
-svc/istio-telemetry            ClusterIP      10.11.254.163   <none>           9091/TCP,15004/TCP,9093/TCP,42422/TCP                                 1m
-svc/prometheus                 ClusterIP      10.11.249.72    <none>           9090/TCP                                                              1m
-svc/servicegraph               ClusterIP      10.11.250.127   <none>           8088/TCP                                                              1m
+NAME                           TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)                                                               AGE
+svc/grafana                    ClusterIP      10.11.253.80    <none>            3000/TCP                                                              2m
+svc/istio-citadel              ClusterIP      10.11.254.179   <none>            8060/TCP,9093/TCP                                                     2m
+svc/istio-egressgateway        ClusterIP      10.11.254.54    <none>            80/TCP,443/TCP                                                        2m
+svc/istio-ingress              LoadBalancer   10.11.245.219   35.224.10.246     80:32000/TCP,443:31768/TCP                                            2m
+svc/istio-ingressgateway       LoadBalancer   10.11.252.159   35.232.175.6      80:31380/TCP,443:31390/TCP,31400:31400/TCP                            2m
+svc/istio-pilot                ClusterIP      10.11.240.237   <none>            15003/TCP,15005/TCP,15007/TCP,15010/TCP,15011/TCP,8080/TCP,9093/TCP   2m
+svc/istio-policy               ClusterIP      10.11.251.101   <none>            9091/TCP,15004/TCP,9093/TCP                                           2m
+svc/istio-sidecar-injector     ClusterIP      10.11.244.6     <none>            443/TCP                                                               2m
+svc/istio-statsd-prom-bridge   ClusterIP      10.11.249.175   <none>            9102/TCP,9125/UDP                                                     2m
+svc/istio-telemetry            ClusterIP      10.11.250.28    <none>            9091/TCP,15004/TCP,9093/TCP,42422/TCP                                 2m
+svc/prometheus                 ClusterIP      10.11.245.221   <none>            9090/TCP                                                              2m
+svc/servicegraph               ClusterIP      10.11.250.77    <none>            8088/TCP                                                              2m
+svc/tracing                    LoadBalancer   10.11.254.122   130.211.117.114   80:30609/TCP                                                          2m
+svc/zipkin                     ClusterIP      10.11.249.241   <none>            9411/TCP                                                              2m
 
 NAME                              DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deploy/grafana                    1         1         1            1           1m
-deploy/istio-citadel              1         1         1            1           1m
-deploy/istio-egressgateway        1         1         1            1           1m
-deploy/istio-ingress              1         1         1            1           1m
-deploy/istio-ingressgateway       1         1         1            1           1m
-deploy/istio-pilot                1         1         1            1           1m
-deploy/istio-policy               1         1         1            1           1m
-deploy/istio-sidecar-injector     1         1         1            1           1m
-deploy/istio-statsd-prom-bridge   1         1         1            1           1m
-deploy/istio-telemetry            1         1         1            1           1m
-deploy/prometheus                 1         1         1            1           1m
-deploy/servicegraph               1         1         1            1           1m
+deploy/grafana                    1         1         1            1           2m
+deploy/istio-citadel              1         1         1            1           2m
+deploy/istio-egressgateway        1         1         1            1           2m
+deploy/istio-ingress              1         1         1            1           2m
+deploy/istio-ingressgateway       1         1         1            1           2m
+deploy/istio-pilot                1         1         1            1           2m
+deploy/istio-policy               1         1         1            1           2m
+deploy/istio-sidecar-injector     1         1         1            1           2m
+deploy/istio-statsd-prom-bridge   1         1         1            1           2m
+deploy/istio-telemetry            1         1         1            1           2m
+deploy/istio-tracing              1         1         1            1           2m
+deploy/prometheus                 1         1         1            1           2m
+deploy/servicegraph               1         1         1            1           2m
+
 ```
 
 
@@ -194,13 +199,13 @@ kubectl -n istio-system port-forward $(kubectl -n istio-system get pod -l app=gr
 
 kubectl -n istio-system port-forward $(kubectl -n istio-system get pod -l app=servicegraph -o jsonpath='{.items[0].metadata.name}') 8088:8088
 
-kubectl port-forward -n istio-system $(kubectl get pod -n istio-system -l app=zipkin -o jsonpath='{.items[0].metadata.name}') 9411:9411
+kubectl port-forward -n istio-system $(kubectl get pod -n istio-system -l app=jaeger -o jsonpath='{.items[0].metadata.name}') 16686:16686 
 ```
 
 Open up a browser (three tabs) and go to:
 - ServiceGraph http://localhost:8088/force/forcegraph.html
 - Grafana http://localhost:3000/dashboard/db/istio-dashboard
-- Zipkin http://localhost:9411
+- Jaeger http://localhost:16686
 
 
 ### Deploy the sample application 
