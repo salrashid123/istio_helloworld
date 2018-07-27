@@ -10,7 +10,7 @@ spec:
   http:       
   - route: 
     - destination:
-        host: myapp.default.svc.cluster.local
+        host: myapp
         subset: v1
 ---
 apiVersion: networking.istio.io/v1alpha3
@@ -18,7 +18,7 @@ kind: DestinationRule
 metadata:
   name: myapp-destination
 spec:
-  host: myapp.default.svc.cluster.local
+  host: myapp
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL  
@@ -40,18 +40,18 @@ spec:
   gateways:
   - mesh 
   hosts:
-  - be.default.svc.cluster.local
+  - be
   http:
   - route:
     - destination:
-        host: be.default.svc.cluster.local
+        host: be
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
   name: be-destination
 spec:
-  host: be.default.svc.cluster.local
+  host: be
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL  

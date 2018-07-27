@@ -59,12 +59,12 @@ To give you a sense of the differences between a regular GKE specification yaml 
 
 ## Lets get started
 
-### Create a 1.9+ GKE Cluster and Bootstrap Istio
+### Create a 1.10+ GKE Cluster and Bootstrap Istio
 
 
 ```bash
 
-gcloud container  clusters create cluster-1 --cluster-version=1.9.7-gke.1 --zone us-central1-a  --num-nodes 4
+gcloud container  clusters create cluster-1 --machine-type "n1-standard-1" --cluster-version=1.10.5 --zone us-central1-a  --num-nodes 4
 
 gcloud container clusters get-credentials cluster-1 --zone us-central1-a
 
@@ -72,17 +72,16 @@ kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-ad
 
 kubectl create ns istio-system
 
-# https://github.com/istio/istio/releases
-wget https://github.com/istio/istio/releases/download/0.8.0/istio-0.8.0-linux.tar.gz
-tar xvzf istio-0.8.0-linux.tar.gz
+export ISTIO_VERSION=1.0.0-snapshot.2
+wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz
+tar xvzf istio-$ISTIO_VERSION-linux.tar.gz
 
-# https://github.com/kubernetes/helm/releases
 wget https://storage.googleapis.com/kubernetes-helm/helm-v2.9.1-linux-amd64.tar.gz
 tar xzvf helm-v2.9.1-linux-amd64.tar.gz
 
-export PATH=$PATH:`pwd`/istio-0.8.0/bin:`pwd`/linux-amd64/
+export PATH=$PATH:`pwd`/istio-$ISTIO_VERSION/bin:`pwd`/linux-amd64/
 
-helm template istio-0.8.0/install/kubernetes/helm/istio --name istio --namespace istio-system \
+helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio --name istio --namespace istio-system \
    --set prometheus.enabled=true \
    --set servicegraph.enabled=true \
    --set grafana.enabled=true \
@@ -102,59 +101,61 @@ Wait maybe 2 to 3 minutes and make sure all the Deployments are live:
 Verify this step by makeing sure all the ```Deployments``` are Available.
 
 ```bash
-$  kubectl get no,po,rc,svc,ing,deployment -n istio-system
+$ kubectl get no,po,rc,svc,ing,deployment -n istio-system
 NAME                                          STATUS    ROLES     AGE       VERSION
-no/gke-cluster-1-default-pool-e804e7ef-c5sd   Ready     <none>    4m        v1.9.7-gke.1
-no/gke-cluster-1-default-pool-e804e7ef-cxgq   Ready     <none>    4m        v1.9.7-gke.1
-no/gke-cluster-1-default-pool-e804e7ef-pf8c   Ready     <none>    4m        v1.9.7-gke.1
-no/gke-cluster-1-default-pool-e804e7ef-r14v   Ready     <none>    4m        v1.9.7-gke.1
+no/gke-cluster-1-default-pool-589c748e-3fl4   Ready     <none>    4m        v1.10.5-gke.0
+no/gke-cluster-1-default-pool-589c748e-5dpj   Ready     <none>    4m        v1.10.5-gke.0
+no/gke-cluster-1-default-pool-589c748e-ccbd   Ready     <none>    4m        v1.10.5-gke.0
+no/gke-cluster-1-default-pool-589c748e-htk8   Ready     <none>    4m        v1.10.5-gke.0
 
-NAME                                           READY     STATUS    RESTARTS   AGE
-po/grafana-cd99bf478-8gswx                     1/1       Running   0          2m
-po/istio-citadel-ff5696f6f-tmn4z               1/1       Running   0          2m
-po/istio-egressgateway-58d98d898c-rbz6c        1/1       Running   0          2m
-po/istio-ingress-6fb78f687f-sf7xh              1/1       Running   0          2m
-po/istio-ingressgateway-6bc7c7c4bc-gjp6s       1/1       Running   0          2m
-po/istio-pilot-6c5c6b586c-8svn6                2/2       Running   0          2m
-po/istio-policy-5c7fbb4b9f-5jp4m               2/2       Running   0          2m
-po/istio-sidecar-injector-dbd67c88d-fj4kk      1/1       Running   0          2m
-po/istio-statsd-prom-bridge-6dbb7dcc7f-qfkz6   1/1       Running   0          2m
-po/istio-telemetry-54b5bf4847-4bqhd            2/2       Running   0          2m
-po/istio-tracing-67dbb5b89f-7ws5v              1/1       Running   0          2m
-po/prometheus-586d95b8d9-rn4br                 1/1       Running   0          2m
-po/servicegraph-6d86dfc6cb-trkzj               1/1       Running   0          2m
+NAME                                          READY     STATUS    RESTARTS   AGE
+po/grafana-546f5b7566-b2gh7                   1/1       Running   0          1m
+po/istio-citadel-85fcc767fc-952wl             1/1       Running   0          1m
+po/istio-egressgateway-96b7679d5-mj2fh        1/1       Running   0          1m
+po/istio-galley-5f5f9b9676-b64d4              1/1       Running   0          1m
+po/istio-ingress-787bb7c94b-lq6pz             1/1       Running   0          1m
+po/istio-ingressgateway-7f7d758d65-wngk6      1/1       Running   0          1m
+po/istio-pilot-6db8d59464-x2j8s               2/2       Running   0          1m
+po/istio-policy-7b978cf7df-gtnld              2/2       Running   0          1m
+po/istio-sidecar-injector-855f88c954-btnss    1/1       Running   0          1m
+po/istio-statsd-prom-bridge-59b45fd6d-vz9sp   1/1       Running   0          1m
+po/istio-telemetry-7dfcc797b6-grhc5           2/2       Running   0          1m
+po/istio-tracing-647f8c48f8-zdwwf             1/1       Running   0          1m
+po/prometheus-ffd95f9f6-8q9wn                 1/1       Running   0          1m
+po/servicegraph-55b7fcd48d-wsbmp              1/1       Running   0          1m
 
-NAME                           TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)                                                               AGE
-svc/grafana                    ClusterIP      10.11.253.80    <none>            3000/TCP                                                              2m
-svc/istio-citadel              ClusterIP      10.11.254.179   <none>            8060/TCP,9093/TCP                                                     2m
-svc/istio-egressgateway        ClusterIP      10.11.254.54    <none>            80/TCP,443/TCP                                                        2m
-svc/istio-ingress              LoadBalancer   10.11.245.219   35.224.10.246     80:32000/TCP,443:31768/TCP                                            2m
-svc/istio-ingressgateway       LoadBalancer   10.11.252.159   35.232.175.6      80:31380/TCP,443:31390/TCP,31400:31400/TCP                            2m
-svc/istio-pilot                ClusterIP      10.11.240.237   <none>            15003/TCP,15005/TCP,15007/TCP,15010/TCP,15011/TCP,8080/TCP,9093/TCP   2m
-svc/istio-policy               ClusterIP      10.11.251.101   <none>            9091/TCP,15004/TCP,9093/TCP                                           2m
-svc/istio-sidecar-injector     ClusterIP      10.11.244.6     <none>            443/TCP                                                               2m
-svc/istio-statsd-prom-bridge   ClusterIP      10.11.249.175   <none>            9102/TCP,9125/UDP                                                     2m
-svc/istio-telemetry            ClusterIP      10.11.250.28    <none>            9091/TCP,15004/TCP,9093/TCP,42422/TCP                                 2m
-svc/prometheus                 ClusterIP      10.11.245.221   <none>            9090/TCP                                                              2m
-svc/servicegraph               ClusterIP      10.11.250.77    <none>            8088/TCP                                                              2m
-svc/tracing                    LoadBalancer   10.11.254.122   130.211.117.114   80:30609/TCP                                                          2m
-svc/zipkin                     ClusterIP      10.11.249.241   <none>            9411/TCP                                                              2m
+NAME                           TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                                                                     AGE
+svc/grafana                    ClusterIP      10.11.253.43    <none>          3000/TCP                                                                    1m
+svc/istio-citadel              ClusterIP      10.11.240.31    <none>          8060/TCP,9093/TCP                                                           1m
+svc/istio-egressgateway        ClusterIP      10.11.252.74    <none>          80/TCP,443/TCP                                                              1m
+svc/istio-galley               ClusterIP      10.11.242.73    <none>          443/TCP,9093/TCP                                                            1m
+svc/istio-ingress              LoadBalancer   10.11.246.248   <pending>       80:32000/TCP,443:30899/TCP                                                  1m
+svc/istio-ingressgateway       LoadBalancer   10.11.241.167   35.202.138.64   80:31380/TCP,443:31390/TCP,31400:31400/TCP,15011:30016/TCP,8060:32469/TCP   1m
+svc/istio-pilot                ClusterIP      10.11.244.184   <none>          15003/TCP,15005/TCP,15007/TCP,15010/TCP,15011/TCP,8080/TCP,9093/TCP         1m
+svc/istio-policy               ClusterIP      10.11.241.210   <none>          9091/TCP,15004/TCP,9093/TCP                                                 1m
+svc/istio-sidecar-injector     ClusterIP      10.11.241.157   <none>          443/TCP                                                                     1m
+svc/istio-statsd-prom-bridge   ClusterIP      10.11.249.19    <none>          9102/TCP,9125/UDP                                                           1m
+svc/istio-telemetry            ClusterIP      10.11.243.165   <none>          9091/TCP,15004/TCP,9093/TCP,42422/TCP                                       1m
+svc/prometheus                 ClusterIP      10.11.250.133   <none>          9090/TCP                                                                    1m
+svc/servicegraph               ClusterIP      10.11.241.17    <none>          8088/TCP                                                                    1m
+svc/tracing                    ClusterIP      10.11.254.79    <none>          80/TCP                                                                      1m
+svc/zipkin                     ClusterIP      10.11.253.22    <none>          9411/TCP                                                                    1m
 
 NAME                              DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deploy/grafana                    1         1         1            1           2m
-deploy/istio-citadel              1         1         1            1           2m
-deploy/istio-egressgateway        1         1         1            1           2m
-deploy/istio-ingress              1         1         1            1           2m
-deploy/istio-ingressgateway       1         1         1            1           2m
-deploy/istio-pilot                1         1         1            1           2m
-deploy/istio-policy               1         1         1            1           2m
-deploy/istio-sidecar-injector     1         1         1            1           2m
-deploy/istio-statsd-prom-bridge   1         1         1            1           2m
-deploy/istio-telemetry            1         1         1            1           2m
-deploy/istio-tracing              1         1         1            1           2m
-deploy/prometheus                 1         1         1            1           2m
-deploy/servicegraph               1         1         1            1           2m
-
+deploy/grafana                    1         1         1            1           1m
+deploy/istio-citadel              1         1         1            1           1m
+deploy/istio-egressgateway        1         1         1            1           1m
+deploy/istio-galley               1         1         1            1           1m
+deploy/istio-ingress              1         1         1            1           1m
+deploy/istio-ingressgateway       1         1         1            1           1m
+deploy/istio-pilot                1         1         1            1           1m
+deploy/istio-policy               1         1         1            1           1m
+deploy/istio-sidecar-injector     1         1         1            1           1m
+deploy/istio-statsd-prom-bridge   1         1         1            1           1m
+deploy/istio-telemetry            1         1         1            1           1m
+deploy/istio-tracing              1         1         1            1           1m
+deploy/prometheus                 1         1         1            1           1m
+deploy/servicegraph               1         1         1            1           1m
 ```
 
 
@@ -171,26 +172,6 @@ echo $GATEWAY_IP
 
 Note down the ```$GATEWAY_IP```; we will use this later as the entrypoint into the helloworld app
 
-
-### Kubernetes Dashboard
-
-You can view the native kubernetes dashboard now.  In 1.9, a couple more steps are required:
-
-```
-kubectl create clusterrolebinding kube-dashboard-admin --clusterrole=cluster-admin --serviceaccount=kube-system:kubernetes-dashboard
-kubectl describe serviceaccount  kubernetes-dashboard  -n kube-system
-```
-Insert the token from above
-
-```
-kubectl describe secret YOUR-kubernetes-dashboard-token  -n kube-system
-```
-
-Then: run ```kubectl proxy```
-
-Finally goto ```http://localhost:8001/ui``` and insert the token here
-
-
 ### Setup some tunnels to each of the services:
 
 Open up three new shell windows and type in one line into each:
@@ -203,7 +184,7 @@ kubectl port-forward -n istio-system $(kubectl get pod -n istio-system -l app=ja
 ```
 
 Open up a browser (three tabs) and go to:
-- ServiceGraph http://localhost:8088/force/forcegraph.html
+- ServiceGraph http://localhost:8088/dotviz
 - Grafana http://localhost:3000/dashboard/db/istio-dashboard
 - Jaeger http://localhost:16686
 
@@ -225,7 +206,7 @@ basically, a default frontend-backend scheme with two replicas each and the same
 
 
 ```
-$ kubectl create -f all-istio.yaml
+kubectl create -f all-istio.yaml
 ```
 
 now use ```istioctl``` to create the ingress-gateway:
@@ -238,7 +219,7 @@ istioctl create -f istio-ingress-gateway.yaml
 and then initialize istio on a sample application
 
 ```
-$ istioctl create -f istio-fev1-bev1.yaml
+istioctl create -f istio-fev1-bev1.yaml
 ```
 
 Wait until the deployments complete:
@@ -246,10 +227,10 @@ Wait until the deployments complete:
 ```
 $ kubectl get po,deployments,svc,ing
 NAME                           READY     STATUS    RESTARTS   AGE
-po/be-v1-5bc4cc7f6b-t9rnn      2/2       Running   0          1m
-po/be-v2-9dd4cf9b8-fknw9       2/2       Running   0          1m
-po/myapp-v1-756b757858-v9f7s   2/2       Running   0          1m
-po/myapp-v2-86556c7c8b-2zccg   2/2       Running   0          1m
+po/be-v1-68947fc994-k8sv2      2/2       Running   0          1m
+po/be-v2-75fb685fcb-pv8rx      2/2       Running   0          1m
+po/myapp-v1-5c4467779d-n5qg5   2/2       Running   0          1m
+po/myapp-v2-5584cff6bb-p666g   2/2       Running   0          1m
 
 NAME              DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
 deploy/be-v1      1         1         1            1           1m
@@ -258,9 +239,9 @@ deploy/myapp-v1   1         1         1            1           1m
 deploy/myapp-v2   1         1         1            1           1m
 
 NAME             TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-svc/be           ClusterIP   10.11.246.122   <none>        8080/TCP   1m
-svc/kubernetes   ClusterIP   10.11.240.1     <none>        443/TCP    6m
-svc/myapp        ClusterIP   10.11.241.127   <none>        8080/TCP   1m
+svc/be           ClusterIP   10.11.251.53    <none>        8080/TCP   1m
+svc/kubernetes   ClusterIP   10.11.240.1     <none>        443/TCP    7m
+svc/myapp        ClusterIP   10.11.246.173   <none>        8080/TCP   1m
 ```
 
 Notice that each pod has two containers:  one is from isto, the other is the applicaiton itself (this is because we have automatic sidecar injection enabled).
@@ -268,7 +249,7 @@ Notice that each pod has two containers:  one is from isto, the other is the app
 Also note that in ```all-istio.yaml``` we did not define an ```Ingress``` object though we've defined a TLS secret with a very specific metadata name: ```istio-ingressgateway-certs```.  That is a special name for a secret that is used by Istio to setup its own ingress gateway:
 
 
-#### Ingress Gateway Secret in 0.8.0
+#### Ingress Gateway Secret in 1.0.0
 
 Note the ```istio-ingress-gateway``` secret specifies the Ingress cert to use (the specific metadata name is special and is **required**)
 
@@ -297,10 +278,10 @@ This section shows basic user->frontend traffic and how serviceGrpah and Grafana
 
 #### Frontend only
 
-So...lets send traffic with the ip; (the /varz endpoint will send traffic to the frontend service only)
+So...lets send traffic with the ip; (the ```/varz``` endpoint will send traffic to the frontend service only)
 
 ```bash
-$ for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; done
+for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
 ```
 
 You should see a sequence of 1's indicating the version of the frontend ```/version``` you just hit
@@ -318,29 +299,6 @@ and
 ![alt text](images/grafana_fev1.png)
 
 
->> Note, at the time of writing (6/2/18), i've noticed on certain ```istioctl replace``` commands results in the frontend container crashlooping (the istio pods).
-I' havent' had time to investigate this yet but for now, if you see ```myapp-v1``` crashlooping as such
-
-```
-$ kubectl get po,rc,deployments
-
-NAME                           READY     STATUS             RESTARTS   AGE
-po/be-v1-5bc4cc7f6b-j4mjt      2/2       Running            0          11m
-po/be-v2-9dd4cf9b8-j6swf       2/2       Running            0          11m
-po/myapp-v1-756b757858-js82r   1/2       CrashLoopBackOff   6          11m
-po/myapp-v2-86556c7c8b-9x58q   2/2       Running            0          11m
-
-NAME              DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deploy/be-v1      1         1         1            1           11m
-deploy/be-v2      1         1         1            1           11m
-deploy/myapp-v1   1         1         1            0           11m
-deploy/myapp-v2   1         1         1            1           11m
-```
-
-Rollback first try rolling back the previous ```istioctl replace``` command and after that, delete and recrete the deployment:  ```kubectl delete -f all-istio.yaml``` (I realize i thats not reasonable in production).
-
-
-
 #### Frontend and Backend
 
 Now the next step in th exercise:
@@ -350,22 +308,24 @@ to send requests to ```user-->frontend--> backend```;  we'll use the application
 (note i'm using  [jq](https://stedolan.github.io/jq/) utility to parse JSON)
 
 ```
-$ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
+for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
 ```
 
 you should see output indicating traffic from the v1 backend verison: ```be-v1-*```
 
 ```
-$ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
+for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
 ```
 
-Note both ServiceGraph and Grafana shows both frontend and backend service telemetry:
+Note both ServiceGraph and Grafana shows both frontend and backend service telemetry and that traffic to ```be:v1``` is 0 req/s 
 
 ![alt text](images/svc_fev1_bev1.png)
 
@@ -394,7 +354,7 @@ spec:
   gateways:
   - mesh 
   hosts:
-  - be.default.svc.cluster.local
+  - be
   http:
   - match:
     - sourceLabels:
@@ -402,7 +362,7 @@ spec:
         version: v1 
     route:
     - destination:
-        host: be.default.svc.cluster.local
+        host: be
         subset: v2
       weight: 100
 ---
@@ -411,7 +371,7 @@ kind: DestinationRule
 metadata:
   name: be-destination
 spec:
-  host: be.default.svc.cluster.local
+  host: be
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL
@@ -434,54 +394,53 @@ istioctl replace -f istio-fev1-bev2.yaml
 
 After sending traffic to check which backend system was called ```/hostz```, we see responses from only ```be-v2-*```.
 What the ```/hosts``` endpoint does is takes a users request to ```fe-*``` and targets any ```be-*```.  Since we only have ```fe-v1``` instances
-running, the traffic outbound for ```be-*``` must terminate at a ```be-v1``` version given the rule above:
+running, the traffic outbound for ```be-*``` must terminate at a ```be-v2``` version given the rule above:
 
 ```
-$ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
+for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
 ```
 
 and on the frontend version is always one.
 ```
-$ for i in {1..100}; do curl -k https://$GATEWAY_IP/version; done
+for i in {1..100}; do curl -k https://$GATEWAY_IP/version; sleep 1; done
 11111111111111111111111111111
 ```
+
+Note the traffic to ```be-v1``` is 0 while there is a non-zero traffic to ```be-v2``` from ```fe-v1```:
 
 ![alt text](images/route_fev1_bev2.png)
 
 ![alt text](images/grafana_fev1_bev2.png)
 
 
-If we now overlay rules that direct traffic allow interleaved  fe(v1|v2) -> be(v1|v2) we expect to see requests to both frontend v1 and backend
+If we now overlay rules that direct traffic allow interleaved  ```fe(v1|v2) -> be(v1|v2)``` we expect to see requests to both frontend v1 and backend
 ```
 istioctl replace -f istio-fev1v2-bev1v2.yaml
 ```
 
 then frontend is both v1 and v2:
 ```
-$ for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; done
+for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version;  done
 111211112122211121212211122211
 ```
 
 and backend is responses comes from both be-v1 and be-v2
 
 ```
-$ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
-"pod: [be-v2-9dd4cf9b8-fknw9]    node: [gke-cluster-1-default-pool-195daff5-r65j]"
-"pod: [be-v1-5bc4cc7f6b-t9rnn]    node: [gke-cluster-1-default-pool-195daff5-6nfs]"
+for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body';  done
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-3fl4]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-3fl4]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
+"pod: [be-v1-68947fc994-k8sv2]    node: [gke-cluster-1-default-pool-589c748e-3fl4]"
+"pod: [be-v2-75fb685fcb-pv8rx]    node: [gke-cluster-1-default-pool-589c748e-htk8]"
 ```
 
 ![alt text](images/route_fev1v2_bev1v2.png)
@@ -493,8 +452,8 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 
 Now lets setup a more selective route based on a specific path in the URI:
 
-- Route requests to myapp where path=/version to only v1
-  A request to http://gateway_ip/version will go to v1 only
+- Route requests to myapp where path=/version to only ```v1```
+  A request to ```http://gateway_ip/version``` will go to ```v1``` only
 
 
 ```yaml
@@ -514,15 +473,15 @@ spec:
         exact: /version
     route:
     - destination:
-        host: myapp.default.svc.cluster.local
+        host: myapp
         subset: v1
   - route: 
     - destination:
-        host: myapp.default.svc.cluster.local
+        host: myapp
         subset: v1
       weight: 20
     - destination:
-        host: myapp.default.svc.cluster.local
+        host: myapp
         subset: v2
       weight: 80
 ```
@@ -533,7 +492,7 @@ istioctl replace -f istio-route-version-fev1-bev1v2.yaml
 ```
 
 ```
-$ for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; done
+for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; done
 1111111111111111111
 ```
 
@@ -541,11 +500,11 @@ You may have noted how the route to the destination is weighted split vs delcare
 ```yaml
   - route: 
     - destination:
-        host: myapp.default.svc.cluster.local
+        host: myapp
         subset: v1
       weight: 20
     - destination:
-        host: myapp.default.svc.cluster.local
+        host: myapp
         subset: v2
       weight: 80
 ```
@@ -554,11 +513,11 @@ Normally, you can use that destination rule to split traffic between services al
 ```yaml
   - route: 
     - destination:
-        host: app1.default.svc.cluster.local
+        host: app1
         subset: v1
       weight: 50
     - destination:
-        host: app2.default.svc.cluster.local
+        host: app2
         subset: v10
       weight: 50
 ```
@@ -579,7 +538,7 @@ istioctl replace -f istio-route-version-fev1-bev1v2.yaml
 ```kubectl delete -f all-istio.yaml```
 
 ```
-$ for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; done
+for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
 2121212222222222222221122212211222222222222222
 ```
 
@@ -607,7 +566,7 @@ spec:
   http:
   - route:
     - destination:
-        host: myapp.default.svc.cluster.local
+        host: myapp
         subset: v1
 ```
 
@@ -620,7 +579,7 @@ kind: DestinationRule
 metadata:
   name: be-destination
 spec:
-  host: be.default.svc.cluster.local
+  host: be
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL
@@ -644,14 +603,14 @@ istioctl replace -f istio-fev1-bev1v2.yaml
 you'll see frontend request all going to ```fe-v1```
 
 ```
-$ for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; done
+for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
 11111111111111
 ```
 
 with backend requests coming from pretty much round robin
 
 ```bash
-$ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
+for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; sleep 1; done
 "pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
 "pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
 "pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
@@ -663,22 +622,11 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 "pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
 "pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
 "pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-
 ```
 
 Now change the ```istio-fev1-bev1v2.yaml```  to ```RANDOM``` and see response is from v1 and v2 random:
 ```bash
-$ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
+for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; sleep 1; done
 "pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
 "pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
 "pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
@@ -692,23 +640,6 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 "pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
 "pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
 "pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v2-9dd4cf9b8-q7zbn]    node: [gke-cluster-1-default-pool-195daff5-r8pl]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-"pod: [be-v1-5bc4cc7f6b-pqpkf]    node: [gke-cluster-1-default-pool-195daff5-5sfm]"
-
 ```
 
 ### Egress Rules
@@ -767,17 +698,11 @@ First make sure there is an inbound rule already running:
 istioctl replace -f istio-fev1-bev1.yaml
 ```
 
-then apply the egress policy:
-
-```
-istioctl create -f istio-egress-rule.yaml
-```
-
 
 - Without egress rule, each request will fail:
 
 ```
-$ $ curl -k -s  https://$GATEWAY_IP/requestz | jq  '.'
+curl -k -s  https://$GATEWAY_IP/requestz | jq  '.'
 ```
 
 gives
@@ -803,14 +728,17 @@ gives
 
 #### With egress rule
 
+then apply the egress policy:
+
 ```
-istioctl create -f egress-rule.yaml
+istioctl create -f istio-egress-rule.yaml
 ```
+
 
 gives
 
 ```bash
-$ curl -s -k https://$GATEWAY_IP/requestz | jq  '.'
+curl -s -k https://$GATEWAY_IP/requestz | jq  '.'
 [
   {
     "url": "http://www.cnn.com:443/",

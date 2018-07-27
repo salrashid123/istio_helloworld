@@ -47,12 +47,7 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
-        livenessProbe:
-          httpGet:
-            path: /_ah/health
-            port: 8080
-          initialDelaySeconds: 30
-          timeoutSeconds: 1
+        
         env:
         - name: MY_POD_NAME
           valueFrom:
@@ -93,7 +88,7 @@ spec:
         image: salrashid123/istioinit:2
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080
+        - containerPort: 8080      
         env:
         - name: MY_POD_NAME
           valueFrom:
@@ -150,7 +145,7 @@ spec:
         image: salrashid123/istioinit:1
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080
+        - containerPort: 8080        
         env:
         - name: MY_NODE_NAME
           valueFrom:
@@ -181,7 +176,7 @@ spec:
         image: salrashid123/istioinit:2
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080
+        - containerPort: 8080       
         env:
         - name: MY_NODE_NAME
           valueFrom:

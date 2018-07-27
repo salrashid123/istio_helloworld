@@ -68,12 +68,6 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
-        #livenessProbe:
-        #  httpGet:
-        #    path: /_ah/health
-        #    port: 8080
-        #  initialDelaySeconds: 30
-        #  timeoutSeconds: 1
         env:
         - name: MY_POD_NAME
           valueFrom:

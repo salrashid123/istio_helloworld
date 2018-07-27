@@ -1,4 +1,4 @@
-var agent = require('@google-cloud/trace-agent').start();
+//var agent = require('@google-cloud/trace-agent').start();
 
 const express = require('express');
 
@@ -15,11 +15,11 @@ app.use(
 );
 
 var winston = require('winston');
-var logger = new (winston.Logger)({
-    transports: [
-          new (winston.transports.Console)({ level: 'info' })
-    ]
-});
+var logger = winston.createLogger({
+  transports: [
+    new (winston.transports.Console)({ level: 'info' })
+  ]
+ });
 
 app.get('/', (request, response) => {
   logger.info('Called /');

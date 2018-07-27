@@ -10,11 +10,11 @@ spec:
   http:
   - route:
     - destination:
-        host: myapp.default.svc.cluster.local
+        host: myapp
         subset: v1
       weight: 100
 #    - destination:
-#        host: myapp.default.svc.cluster.local
+#        host: myapp
 #        subset: v2
 #      weight: 10
 ---
@@ -23,7 +23,7 @@ kind: DestinationRule
 metadata:
   name: myapp-destination
 spec:
-  host: myapp.default.svc.cluster.local
+  host: myapp
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL  
@@ -45,7 +45,7 @@ spec:
   gateways:
   - mesh 
   hosts:
-  - be.default.svc.cluster.local
+  - be
   http:
   - match:
     - sourceLabels:
@@ -53,12 +53,12 @@ spec:
         version: v1 
     route:      
     - destination:
-        host: be.default.svc.cluster.local
+        host: be
         subset: v1
       weight: 100
 #  - route:
 #    - destination:
-#        host: be.default.svc.cluster.local
+#        host: be
 #        subset: v2
 #      weight: 0       
 ---
@@ -67,7 +67,7 @@ kind: DestinationRule
 metadata:
   name: be-destination
 spec:
-  host: be.default.svc.cluster.local
+  host: be
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL  
