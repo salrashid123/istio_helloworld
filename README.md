@@ -72,7 +72,7 @@ kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-ad
 
 kubectl create ns istio-system
 
-export ISTIO_VERSION=1.0.0-snapshot.2
+export ISTIO_VERSION=1.0.0
 wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz
 tar xvzf istio-$ISTIO_VERSION-linux.tar.gz
 
