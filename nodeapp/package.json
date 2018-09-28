@@ -5,7 +5,7 @@
     "start": "node app.js"
   },
   "dependencies": {
-    "debug": "~2.2.0",
+    "debug": "~2.6.9",
     "express": "~4.13.1",
     "request-promise": "4.2.2",
     "dns": "0.2.2",
