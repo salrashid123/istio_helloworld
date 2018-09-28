@@ -64,7 +64,7 @@ To give you a sense of the differences between a regular GKE specification yaml 
 
 ```bash
 
-gcloud container  clusters create cluster-1 --machine-type "n1-standard-1" --cluster-version=1.10.5 --zone us-central1-a  --num-nodes 4
+gcloud container  clusters create cluster-1 --machine-type "n1-standard-1" --zone us-central1-a  --num-nodes 4
 
 gcloud container clusters get-credentials cluster-1 --zone us-central1-a
 
