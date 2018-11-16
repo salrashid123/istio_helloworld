@@ -84,8 +84,8 @@ kubectl create ns istio-system
 #tar xvzf istio-$ISTIO_VERSION-linux.tar.gz
 
 export ISTIO_VERSION=release-1.1-20181115-09-15
-wget https://storage.googleapis.com/istio-prerelease/daily-build/release-1.1-latest-daily/istio-release-1.1-20181115-09-15-linux.tar.gz
-tar xf istio-release-1.1-20181115-09-15-linux.tar.gz
+wget https://storage.googleapis.com/istio-prerelease/daily-build/release-1.1-20181115-09-15/istio-release-1.1-20181115-09-15-linux.tar.gz
+tar xf istio-$ISTIO_VERSION-linux.tar.gz
 
 wget https://storage.googleapis.com/kubernetes-helm/helm-v2.11.0-linux-amd64.tar.gz
 tar xf helm-v2.11.0-linux-amd64.tar.gz
@@ -98,6 +98,7 @@ kubectl apply -f istio-$ISTIO_VERSION/install/kubernetes/helm/subcharts/certmana
 sleep 5
 
 helm init --client-only
+#helm repo add istio.io https://storage.googleapis.com/istio-release/releases/1.1.0/charts/
 helm repo add istio.io https://storage.googleapis.com/istio-prerelease/daily-build/release-1.1-latest-daily/charts
 helm dependency update istio-$ISTIO_VERSION/install/kubernetes/helm/istio
 
