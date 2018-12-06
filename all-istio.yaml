@@ -29,6 +29,11 @@ type: Opaque
 data:
   google-key: "QUl6YVN5RGdSWTNEejRCenFwekxXRG1JU1JhSm80ejlDLXBvNXpnCg=="
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: myapp-sa
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -41,13 +46,13 @@ spec:
         app: myapp
         version: v1
     spec:
+      serviceAccountName: myapp-sa
       containers:
       - name: myapp-container
         image: salrashid123/istioinit:1
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080
-        
+        - containerPort: 8080        
         env:
         - name: MY_POD_NAME
           valueFrom:
@@ -125,6 +130,11 @@ spec:
   selector:
     app: be
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: be-sa
+---  
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -140,6 +150,7 @@ spec:
         app: be
         version: v1
     spec:
+      serviceAccountName: be-sa
       containers:
       - name: be-container
         image: salrashid123/istioinit:1
@@ -171,6 +182,7 @@ spec:
         app: be
         version: v2
     spec:
+      serviceAccountName: be-sa
       containers:
       - name: be-container
         image: salrashid123/istioinit:2

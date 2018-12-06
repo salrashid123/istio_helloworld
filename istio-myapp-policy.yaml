@@ -1,0 +1,21 @@
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: myapp-viewer
+  namespace: default
+spec:
+  rules:
+  - services: ["myapp.default.svc.cluster.local"]
+    methods: ["GET"]
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-myapp-viewer
+  namespace: default
+spec:
+  subjects:
+  - user: "*"
+  roleRef:
+    kind: ServiceRole
+    name: "myapp-viewer"
