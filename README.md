@@ -26,6 +26,7 @@ i understand something is to rewrite sections and only those sections from the g
 - Route Control
 - Destination Rules
 - Egress Policies
+- LUA HttpFilter
 
 
 ## What is the app you used?
@@ -40,7 +41,8 @@ The endpoints on this app are as such:
 - ```/backend```: Return the nodename, pod name.  Designed to only get called as if the applciation running is a 'backend' ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L41))
 - ```/hostz```:  Does a DNS SRV lookup for the 'backend' and makes an http call to its '/backend', endpoint ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L45))
 - ```/requestz```:  Makes an HTTP fetch for three external URLs (used to show egress rules) ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L95))
-
+- ```/headerz```:  Displays inbound headers
+ ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L115))
 
 I build and uploaded this app to dockerhub at
 
@@ -84,13 +86,13 @@ kubectl create ns istio-system
 #tar xvzf istio-$ISTIO_VERSION-linux.tar.gz
 
 export ISTIO_VERSION=release-1.1-20181115-09-15
-wget https://storage.googleapis.com/istio-prerelease/daily-build/release-1.1-20181115-09-15/istio-release-1.1-20181115-09-15-linux.tar.gz
+wget https://storage.googleapis.com/istio-prerelease/daily-build/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz
 tar xf istio-$ISTIO_VERSION-linux.tar.gz
 
 wget https://storage.googleapis.com/kubernetes-helm/helm-v2.11.0-linux-amd64.tar.gz
 tar xf helm-v2.11.0-linux-amd64.tar.gz
 
-export PATH=$PATH:`pwd`/istio-$ISTIO_VERSION/bin:`pwd`/linux-amd64/
+export PATH=`pwd`/istio-$ISTIO_VERSION/bin:`pwd`/linux-amd64/:$PATH
 
 kubectl apply -f istio-$ISTIO_VERSION/install/kubernetes/helm/istio/templates/crds.yaml
 kubectl apply -f istio-$ISTIO_VERSION/install/kubernetes/helm/subcharts/certmanager/templates/crds.yaml
@@ -103,15 +105,18 @@ helm repo add istio.io https://storage.googleapis.com/istio-prerelease/daily-bui
 helm dependency update istio-$ISTIO_VERSION/install/kubernetes/helm/istio
 
 # https://github.com/istio/istio/tree/master/install/kubernetes/helm/istio#configuration
+# https://istio.io/docs/reference/config/installation-options/
+
 helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio --name istio --namespace istio-system \
    --set prometheus.enabled=true \
    --set servicegraph.enabled=true \
    --set grafana.enabled=true \
    --set tracing.enabled=true \
    --set sidecarInjectorWebhook.enabled=true \
-   --set global.mtls.enabled=true > istio.yaml
+   --set global.mtls.enabled=true  > istio.yaml
 
 kubectl create -f istio.yaml
+
 kubectl label namespace default istio-injection=enabled
 
 
@@ -739,39 +744,68 @@ spec:
   hosts:
   - www.bbc.com
   ports:
-  - number: 443
-    name: https
+  - number: 80
+    name: http
     protocol: HTTP
+  resolution: DNS
+  location: MESH_EXTERNAL
 ---
 apiVersion: networking.istio.io/v1alpha3
-kind: DestinationRule
+kind: ServiceEntry
 metadata:
-  name: bbc-ext
+  name: google-ext
 spec:
-  host: www.bbc.com
-  trafficPolicy:
-    tls:
-      mode: SIMPLE
+  hosts:
+  - www.google.com
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  resolution: DNS
+  location: MESH_EXTERNAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: google-ext
+spec:
+  hosts:
+  - www.google.com
+  tls:
+  - match:
+    - port: 443
+      sni_hosts:
+      - www.google.com
+    route:
+    - destination:
+        host: www.google.com
+        port:
+          number: 443
+      weight: 100
+
 ```
 
 
-Allows only ```https://www.bbc.com/*``` but here is the catch:  you must change your code in the container to make a call to
+Allows only ```http://www.bbc.com/*``` and ```https://www.google.com/*``` but here is the catch:  you must change your code in the container to make a call to
 
-```http://www.bbc.com:443```  (NOTE the protocol is different)
+```http://www.bbc.com:80``` and ```http://www.google.com:443/```  (NOTE the protocol is different and the port is specified)
 
-This is pretty unusable ..futurue releases of egress+istio will use SNI so users do not have to change their client code like this.
+This is pretty unusable ..future releases of egress+istio will use SNI so users do not have to change their client code like this.
 
 Anyway, to test, the `/hostz` endpoint tries to fetch the following URLs:
 
 ```javascript
     var urls = [
-                'http://www.cnn.com:443/',
-                'http://www.bbc.com:443/robots.txt',
-                'https://www.bbc.com/robots.txt',
+                'https://www.google.com/robots.txt',
+                'http://www.bbc.com/robots.txt',
+                'http://www.google.com:443/robots.txt',
+                'https://www.cornell.edu/robots.txt',
+                'https://www.uwo.ca/robots.txt',
+                'http://www.yahoo.com/robots.txt'
     ]
 ```
 
-Lets setup this customer for these egress rules.
+ok, instead of setting up bypass ranges, lets setup this customer for these egress rules.
 
 First make sure there is an inbound rule already running:
 
@@ -780,7 +814,7 @@ kubectl replace -f istio-fev1-bev1.yaml
 ```
 
 
-- Without egress rule, each request will fail:
+- Without egress rule, requests will fail:
 
 ```
 curl -k -s  https://$GATEWAY_IP/requestz | jq  '.'
@@ -791,20 +825,47 @@ gives
 ```
 [
   {
-    "url": "http:\/\/www.cnn.com:443\/",
+    "url": "https://www.google.com/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: read ECONNRESET",
+      "message": "Error: Client network socket disconnected before secure TLS connection was established",
+  },
   {
-    "url": "http:\/\/www.bbc.com:443\/robots.txt",
+    "url": "http://www.google.com:443/robots.txt",
     "statusCode": {
       "name": "RequestError",
       "message": "Error: read ECONNRESET",
+  },
   {
-    "url": "https:\/\/www.bbc.com\/robots.txt",
+    "url": "http://www.bbc.com/robots.txt",
+    "body": "",
+    "statusCode": 404
+  },
+  {
+    "url": "https://www.cornell.edu/robots.txt",
     "statusCode": {
       "name": "RequestError",
       "message": "Error: read ECONNRESET",
+  },
+  {
+    "url": "https://www.uwo.ca/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: Client network socket disconnected before secure TLS connection was established",
+  },
+  {
+    "url": "https://www.yahoo.com/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: Client network socket disconnected before secure TLS connection was established",
+  },
+  {
+    "url": "http://www.yahoo.com:443/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: read ECONNRESET",
+]
+
 ```
 
 #### With egress rule
@@ -820,46 +881,150 @@ gives
 
 ```bash
 curl -s -k https://$GATEWAY_IP/requestz | jq  '.'
+
 [
   {
-    "url": "http://www.cnn.com:443/",
-    "body": "",
-    "statusCode": 404
-  },
-  {
-    "url": "http://www.bbc.com:443/robots.txt",
-    "body": "# v.4.7.4\n# HTTPS  www.bbc.com\nUser-agent: *\nSitemap: https://www.bbc.com/sitemaps/https-index-com-archive.xml\nSitemap: https://www.bbc.com/sitemaps/https-index-com-news.xml\n\n\nDisallow: /cbbc/search/\nDisallow: /cbbc/search$\nDisallow: /cbbc/search?\nDisallow: /cbeebies/search/\nDisallow: /cbeebies/search$\nDisallow: /cbeebies/search?\nDisallow: /chwilio/\nDisallow: /chwilio$\nDisallow: /chwilio?\nDisallow: /education/blocks$\nDisallow: /education/blocks/\nDisallow: /newsround\nDisallow: /search/\nDisallow: /search$\nDisallow: /search?\nDisallow: /food/favourites\nDisallow: /food/recipes/search*?*",
+    "url": "https://www.google.com/robots.txt",
     "statusCode": 200
   },
   {
-    "url": "https://www.bbc.com/robots.txt",
+    "url": "http://www.google.com:443/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: write EPROTO 140312253028160:error:140770FC:SSL routines:SSL23_GET_SERVER_HELLO:unknown protocol:../deps/openssl/openssl/ssl/s23_clnt.c:827:\n",
-      "cause": {
-        "errno": "EPROTO",
-        "code": "EPROTO",
-        "syscall": "write"
-      },
-      "error": {
-        "errno": "EPROTO",
-        "code": "EPROTO",
-        "syscall": "write"
-      },
-      "options": {
-        "method": "GET",
-        "uri": "https://www.bbc.com/robots.txt",
-        "resolveWithFullResponse": true,
-        "simple": false,
-        "transform2xxOnly": false
-      }
-    }
-  }
+      "message": "Error: read ECONNRESET",
+  },
+  {
+    "url": "http://www.bbc.com/robots.txt",
+    "statusCode": 200
+  },
+  {
+    "url": "https://www.cornell.edu/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: read ECONNRESET",
+  },
+  {
+    "url": "https://www.uwo.ca/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: read ECONNRESET",
+  },
+  {
+    "url": "https://www.yahoo.com/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: read ECONNRESET",
+  },
+  {
+    "url": "http://www.yahoo.com:443/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: read ECONNRESET",
 ]
 
 ```
 
 Notice that only one of the hosts worked over SSL worked
+
+### Egress Gateway
+
+THe egress rule above initiates the proxied conneciton from each sidecar....but why not initiate the SSL connection from a set of bastion/egress
+gateways we already setup?   THis is where the `Egress Gateway` configurations come up.
+
+First lets revert the config we setup above
+
+```
+kubectl delete -f istio-egress-rule.yaml
+```
+
+then lets apply the rule for the gateway:
+
+```bash
+kubectl create -f istio-egress-rule.yaml
+
+
+[
+  {
+    "url": "https://www.google.com/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+  },
+  {
+    "url": "http://www.google.com:443/robots.txt",
+    "body": "<!DOCTYPE html>\n<html lang=\"en-us\">
+    "statusCode": 404
+  },
+  {
+    "url": "http://www.bbc.com/robots.txt",
+    "body": "",
+    "statusCode": 404
+  },
+  {
+    "url": "https://www.cornell.edu/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+  },
+  {
+    "url": "https://www.uwo.ca/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+  },
+  {
+    "url": "https://www.yahoo.com/robots.txt",
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version  },
+  {
+    "url": "http://www.yahoo.com:443/robots.txt",
+    "statusCode": 404
+  }
+]
+
+```
+
+
+```
+kubectl logs $(kubectl get pod -l istio=egressgateway -n istio-system -o jsonpath='{.items[0].metadata.name}') egressgateway -n istio-system | tail
+```
+
+### LUA HTTPFilters
+
+
+The following will setup a simple Request/Response LUA `EnvoyFilter` for the frontent `myapp`:
+
+The settings below injects headers in both the request and response streams:
+
+```
+kubectl apply -f istio-fev1-httpfilter.yaml
+```
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: http-lua
+spec:
+  workloadLabels:
+    app: myapp
+    version: v1
+  filters:
+  - listenerMatch:
+      portNumber: 9080
+      listenerType: SIDECAR_INBOUND
+    filterName: envoy.lua
+    filterType: HTTP
+    filterConfig:
+      inlineCode: |
+        function envoy_on_request(request_handle)
+          request_handle:headers():add("foo", "bar")
+        end
+        function envoy_on_response(response_handle)
+          response_handle:headers():add("foo2", "bar2")
+        end
+```
 
 ## Cleanup
 

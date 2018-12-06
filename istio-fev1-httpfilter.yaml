@@ -1,0 +1,22 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: http-lua
+spec:
+  workloadLabels:
+    app: myapp
+    version: v1
+  filters:
+  - listenerMatch:
+      portNumber: 8080
+      listenerType: SIDECAR_INBOUND
+    filterName: envoy.lua
+    filterType: HTTP
+    filterConfig:
+      inlineCode: |
+        function envoy_on_request(request_handle)
+          request_handle:headers():add("foo", "bar")
+        end
+        function envoy_on_response(response_handle)
+          response_handle:headers():add("foo2", "bar2")
+        end

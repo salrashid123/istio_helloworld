@@ -6,16 +6,42 @@ spec:
   hosts:
   - www.bbc.com
   ports:
-  - number: 443
-    name: https
+  - number: 80
+    name: http
     protocol: HTTP
+  resolution: DNS
+  location: MESH_EXTERNAL
 ---
 apiVersion: networking.istio.io/v1alpha3
-kind: DestinationRule
+kind: ServiceEntry
 metadata:
-  name: bbc-ext
+  name: google-ext
 spec:
-  host: www.bbc.com
-  trafficPolicy:
-    tls:
-      mode: SIMPLE
+  hosts:
+  - www.google.com
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  resolution: DNS
+  location: MESH_EXTERNAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: google-ext
+spec:
+  hosts:
+  - www.google.com
+  tls:
+  - match:
+    - port: 443
+      sni_hosts:
+      - www.google.com
+    route:
+    - destination:
+        host: www.google.com
+        port:
+          number: 443
+      weight: 100
+

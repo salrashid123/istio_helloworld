@@ -96,9 +96,13 @@ app.get('/requestz', (request, response) => {
 
     var resp_promises = []
     var urls = [
-                'http://www.cnn.com:443/',
-                'http://www.bbc.com:443/robots.txt',
-                'https://www.bbc.com/robots.txt',
+                'https://www.google.com/robots.txt',
+                'http://www.google.com:443/robots.txt',                
+                'http://www.bbc.com/robots.txt',
+                'https://www.cornell.edu/robots.txt',
+                'https://www.uwo.ca/robots.txt',
+                'https://www.yahoo.com/robots.txt',             
+                'http://www.yahoo.com:443/robots.txt'    
     ]
 
     urls.forEach(function(element){
@@ -110,6 +114,11 @@ app.get('/requestz', (request, response) => {
     }, function(value) {
       response.send(value);
     });
+})
+
+app.get('/headerz', (request, response) => {
+  logger.info('/headerz');
+  response.send(request.headers);
 })
 
 app.listen(port, (err) => {
