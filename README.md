@@ -142,8 +142,8 @@ data:
 kubectl apply -f kiali_secret.yaml
 
 export KIALI_OPTIONS=" --set kiali.enabled=true "
-KIALI_OPTIONS=$KIALI_OPTIONS"  --set kiali.dashboard.grafanaURL=http://$(kubectl get svc grafana -n istio-system -o jsonpath='{.spec.clusterIP}'):3000"
-KIALI_OPTIONS=$KIALI_OPTIONS" --set kiali.dashboard.jaegerURL=http://$(kubectl get svc tracing -n istio-system -o jsonpath='{.spec.clusterIP}'):80"
+KIALI_OPTIONS=$KIALI_OPTIONS"  --set kiali.dashboard.grafanaURL=http://localhost:3000"
+KIALI_OPTIONS=$KIALI_OPTIONS" --set kiali.dashboard.jaegerURL=http://localhost:16686"
 helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio --name istio --namespace istio-system $KIALI_OPTIONS  > istio_kiali.yaml
 
 kubectl apply -f istio_kiali.yaml
@@ -238,7 +238,7 @@ kubectl -n istio-system port-forward $(kubectl -n istio-system get pod -l app=gr
 
 kubectl -n istio-system port-forward $(kubectl -n istio-system get pod -l app=servicegraph -o jsonpath='{.items[0].metadata.name}') 8088:8088
 
-kubectl port-forward -n istio-system $(kubectl get pod -n istio-system -l app=jaeger -o jsonpath='{.items[0].metadata.name}') 16686:16686 
+kubectl port-forward -n istio-system $(kubectl get pod -n istio-system -l app=jaeger -o jsonpath='{.items[0].metadata.name}') 16686:16686
 
 kubectl -n istio-system port-forward $(kubectl -n istio-system get pod -l app=kiali -o jsonpath='{.items[0].metadata.name}') 20001:20001
 ```
@@ -250,7 +250,7 @@ Open up a browser (three tabs) and go to:
 - Jaeger http://localhost:16686
 
 
-### Deploy the sample application 
+### Deploy the sample application
 
 The default ```all-istio.yaml``` runs:
 
@@ -333,7 +333,7 @@ export GATEWAY_IP=$(kubectl -n istio-system get service istio-ingressgateway -o 
 echo $GATEWAY_IP
 ```
 
-### Send Traffic 
+### Send Traffic
 
 This section shows basic user->frontend traffic and how serviceGrpah and Grafana consoles:
 
@@ -389,7 +389,7 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 "pod: [be-v1-5bc4cc7f6b-sbts8]    node: [gke-cluster-1-default-pool-a2fdcf98-6mrq]"
 ```
 
-Note both ServiceGraph and Grafana shows both frontend and backend service telemetry and that traffic to ```be:v1``` is 0 req/s 
+Note both ServiceGraph and Grafana shows both frontend and backend service telemetry and that traffic to ```be:v1``` is 0 req/s
 
 ![alt text](images/kiali_fev1_bev1.png)
 
@@ -416,14 +416,14 @@ metadata:
   name: be-virtualservice
 spec:
   gateways:
-  - mesh 
+  - mesh
   hosts:
   - be
   http:
   - match:
     - sourceLabels:
         app: myapp
-        version: v1 
+        version: v1
     route:
     - destination:
         host: be
@@ -544,14 +544,14 @@ spec:
   gateways:
   - my-gateway
   http:
-  - match: 
+  - match:
     - uri:
         exact: /version
     route:
     - destination:
         host: myapp
         subset: v1
-  - route: 
+  - route:
     - destination:
         host: myapp
         subset: v1
@@ -574,7 +574,7 @@ for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; done
 
 You may have noted how the route to the destination is weighted split vs delcared round robin (eg:)
 ```yaml
-  - route: 
+  - route:
     - destination:
         host: myapp
         subset: v1
@@ -587,7 +587,7 @@ You may have noted how the route to the destination is weighted split vs delcare
 
 Normally, you can use that destination rule to split traffic between services alltogether (eg, in real life you may have):
 ```yaml
-  - route: 
+  - route:
     - destination:
         host: app1
         subset: v1
@@ -601,7 +601,7 @@ Normally, you can use that destination rule to split traffic between services al
 which for any other endpoint other than endpoint other thatn ```/version```, each request is split 50/50 between two destination services (```app1``` and ```app2```)
 
 
-Anyway, now lets edit rule to  and change the prefix match to ```/xversion``` so the match doesn't apply 
+Anyway, now lets edit rule to  and change the prefix match to ```/xversion``` so the match doesn't apply
   A request to http://gateway_ip/version will go to v1 and v2 (since the path rule did not match)
 
 Once you make this change, use ```kubectl``` to make the change happen
@@ -670,7 +670,7 @@ spec:
       version: v2
 ```
 
-After you apply the rule, 
+After you apply the rule,
 
 ```
 kubectl replace -f istio-fev1-bev1v2.yaml
@@ -949,7 +949,7 @@ kubectl create -f istio-egress-rule.yaml
     "url": "https://www.google.com/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version
   },
   {
     "url": "http://www.google.com:443/robots.txt",
@@ -965,13 +965,13 @@ kubectl create -f istio-egress-rule.yaml
     "url": "https://www.cornell.edu/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version
   },
   {
     "url": "https://www.uwo.ca/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+      "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version
   },
   {
     "url": "https://www.yahoo.com/robots.txt",
@@ -1051,7 +1051,7 @@ then
 ```
 curl -vk https://$GATEWAY_IP/version
 
-< HTTP/2 403 
+< HTTP/2 403
 < content-length: 19
 < content-type: text/plain
 < date: Thu, 06 Dec 2018 23:13:32 GMT
@@ -1074,7 +1074,7 @@ then
 ```
 curl -vk https://$GATEWAY_IP/version
 
-< HTTP/2 200 
+< HTTP/2 200
 < x-powered-by: Express
 < content-type: text/html; charset=utf-8
 < content-length: 1
@@ -1082,7 +1082,7 @@ curl -vk https://$GATEWAY_IP/version
 < date: Thu, 06 Dec 2018 23:16:36 GMT
 < x-envoy-upstream-service-time: 97
 < server: istio-envoy
- 
+
 1
 ```
 
@@ -1091,7 +1091,7 @@ but access to the backend gives:
 ```
 curl -v https://$GATEWAY_IP/hostz
 
-< HTTP/2 200 
+< HTTP/2 200
 < x-powered-by: Express
 < content-type: application/json; charset=utf-8
 < content-length: 106
@@ -1099,7 +1099,7 @@ curl -v https://$GATEWAY_IP/hostz
 < date: Thu, 06 Dec 2018 23:30:17 GMT
 < x-envoy-upstream-service-time: 52
 < server: istio-envoy
-< 
+<
 * Connection #0 to host 35.238.104.13 left intact
 [{"url":"http://be.default.svc.cluster.local:8080/backend","body":"RBAC: access denied","statusCode":403}]
 ```
@@ -1146,7 +1146,7 @@ Wait maybe 30seconds and no you should again have access to the frontend.
 ```
 curl -v -k https://$GATEWAY_IP/version
 
-< HTTP/2 200 
+< HTTP/2 200
 < x-powered-by: Express
 < content-type: text/html; charset=utf-8
 < content-length: 1
@@ -1162,7 +1162,7 @@ but not the backend
 ```
  curl -v -k https://$GATEWAY_IP/hostz
 
-< HTTP/2 200 
+< HTTP/2 200
 < x-powered-by: Express
 < content-type: application/json; charset=utf-8
 < content-length: 106
@@ -1232,7 +1232,7 @@ Now you should be able to access the backend fine:
 
 ```
 curl -v -k https://35.238.104.13/hostz
-< HTTP/2 200 
+< HTTP/2 200
 < x-powered-by: Express
 < content-type: application/json; charset=utf-8
 < content-length: 168
