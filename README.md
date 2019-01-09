@@ -12,7 +12,6 @@ i understand something is to rewrite sections and only those sections from the g
 ## Istio version used
 
 * 11/15/18:  Istio 1.1 Prelimanary build `release-1.1-20181115-09-15`
-
 * [Prior Istio Versions](https://github.com/salrashid123/istio_helloworld/tags)
 
 
@@ -98,7 +97,7 @@ export PATH=`pwd`/istio-$ISTIO_VERSION/bin:`pwd`/linux-amd64/:$PATH
 kubectl apply -f istio-$ISTIO_VERSION/install/kubernetes/helm/istio/templates/crds.yaml
 kubectl apply -f istio-$ISTIO_VERSION/install/kubernetes/helm/subcharts/certmanager/templates/crds.yaml
 
-sleep 5
+sleep 15
 
 helm init --client-only
 #helm repo add istio.io https://storage.googleapis.com/istio-release/releases/1.1.0/charts/
@@ -114,9 +113,11 @@ helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio --name istio --
    --set grafana.enabled=true \
    --set tracing.enabled=true \
    --set sidecarInjectorWebhook.enabled=true \
+   --set gateways.istio-ilbgateway.enabled=true \
    --set global.mtls.enabled=true  > istio.yaml
 
-kubectl create -f istio.yaml
+kubectl apply -f istio.yaml
+kubectl apply -f istio-ilbgateway-service.yaml
 
 kubectl label namespace default istio-injection=enabled
 
@@ -151,6 +152,8 @@ kubectl apply -f istio_kiali.yaml
 
 Wait maybe 2 to 3 minutes and make sure all the Deployments are live:
 
+# For reference, here are the Istio [installation options](https://istio.io/docs/reference/config/installation-options/)
+
 ### Make sure the Istio installation is ready
 
 Verify this step by makeing sure all the ```Deployments``` are Available.
@@ -158,62 +161,66 @@ Verify this step by makeing sure all the ```Deployments``` are Available.
 ```bash
 $ kubectl get no,po,rc,svc,ing,deployment -n istio-system
 NAME                                            STATUS    ROLES     AGE       VERSION
-node/gke-cluster-1-default-pool-a2fdcf98-6bqk   Ready     <none>    23m       v1.9.7-gke.11
-node/gke-cluster-1-default-pool-a2fdcf98-6mrq   Ready     <none>    23m       v1.9.7-gke.11
-node/gke-cluster-1-default-pool-a2fdcf98-97hc   Ready     <none>    23m       v1.9.7-gke.11
-node/gke-cluster-1-default-pool-a2fdcf98-qq7h   Ready     <none>    23m       v1.9.7-gke.11
+node/gke-cluster-1-default-pool-501892d1-0dk7   Ready     <none>    1h        v1.10.9-gke.5
+node/gke-cluster-1-default-pool-501892d1-43xv   Ready     <none>    1h        v1.10.9-gke.5
+node/gke-cluster-1-default-pool-501892d1-mpbg   Ready     <none>    1h        v1.10.9-gke.5
+node/gke-cluster-1-default-pool-501892d1-xrb2   Ready     <none>    1h        v1.10.9-gke.5
 
 NAME                                           READY     STATUS      RESTARTS   AGE
-pod/grafana-85955fb84f-n4v7h                   1/1       Running     0          4m
-pod/istio-citadel-548dc9cdf5-br5xg             1/1       Running     0          4m
-pod/istio-cleanup-secrets-v1.1.0-qsd5j         0/1       Completed   0          4m
-pod/istio-egressgateway-5d95987cdd-fvc8m       1/1       Running     0          4m
-pod/istio-galley-6b45b7d57d-55lh2              1/1       Running     0          4m
-pod/istio-grafana-post-install-v1.1.0-x8bf2    0/1       Completed   0          4m
-pod/istio-ingressgateway-55bcc56479-6thps      1/1       Running     0          4m
-pod/istio-pilot-588b4f9997-n76ws               2/2       Running     0          4m
-pod/istio-policy-5fdb9fd985-znvls              2/2       Running     0          4m
-pod/istio-security-post-install-v1.1.0-bht5q   0/1       Completed   0          4m
-pod/istio-sidecar-injector-9fbdd5b7f-4drzw     1/1       Running     0          4m
-pod/istio-telemetry-64dff4c85c-6fnx4           2/2       Running     0          4m
-pod/istio-tracing-57865d57db-nscbk             1/1       Running     0          4m
-pod/kiali-5f957d68bb-jcdn8                     1/1       Running     0          30s
-pod/prometheus-795cfb9854-9h7mc                1/1       Running     0          4m
-pod/servicegraph-7487664bcb-fs5w2              1/1       Running     0          4m
+pod/grafana-98d47d7c7-6kzrg                    1/1       Running     0          1h
+pod/istio-citadel-7b684cb9f9-thxhl             1/1       Running     0          1h
+pod/istio-cleanup-secrets-v1.1.0-x7wjt         0/1       Completed   0          1h
+pod/istio-egressgateway-6f65d46d56-dh9dd       1/1       Running     0          1h
+pod/istio-galley-77fbf68578-gf85d              1/1       Running     0          1h
+pod/istio-grafana-post-install-v1.1.0-tknsd    0/1       Completed   0          1h
+pod/istio-ilbgateway-dc84bbd5-9w4xx            1/1       Running     0          1h
+pod/istio-ingressgateway-79cbb44f59-kmj9g      1/1       Running     0          1h
+pod/istio-pilot-749dd6dd97-qlt9t               2/2       Running     0          1h
+pod/istio-policy-5cdd845445-4fhwm              2/2       Running     0          1h
+pod/istio-security-post-install-v1.1.0-4jlm4   0/1       Completed   0          1h
+pod/istio-sidecar-injector-6449d5b555-54gwg    1/1       Running     0          1h
+pod/istio-telemetry-5b8fd8ccb9-vncvm           2/2       Running     0          1h
+pod/istio-tracing-7fbf78f9f4-nbmvl             1/1       Running     0          1h
+pod/kiali-5cff99b77d-2rtcz                     1/1       Running     0          1h
+pod/prometheus-7fcd5846db-mvck8                1/1       Running     0          1h
+pod/servicegraph-dcd5d6848-v7krs               1/1       Running     0          1h
 
-NAME                             TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                                                                                                                      AGE
-service/grafana                  ClusterIP      10.11.254.237   <none>        3000/TCP                                                                                                                     4m
-service/istio-citadel            ClusterIP      10.11.250.233   <none>        8060/TCP,9093/TCP                                                                                                            4m
-service/istio-egressgateway      ClusterIP      10.11.241.151   <none>        80/TCP,443/TCP,15443/TCP                                                                                                     4m
-service/istio-galley             ClusterIP      10.11.252.159   <none>        443/TCP,9093/TCP,9901/TCP                                                                                                    4m
-service/istio-ingressgateway     LoadBalancer   10.11.248.123   35.238.0.89   80:31380/TCP,443:31390/TCP,31400:31400/TCP,15029:30110/TCP,15030:30298/TCP,15031:30191/TCP,15032:32151/TCP,15443:30750/TCP   4m
-service/istio-pilot              ClusterIP      10.11.255.16    <none>        15010/TCP,15011/TCP,8080/TCP,9093/TCP                                                                                        4m
-service/istio-policy             ClusterIP      10.11.244.247   <none>        9091/TCP,15004/TCP,9093/TCP                                                                                                  4m
-service/istio-sidecar-injector   ClusterIP      10.11.241.201   <none>        443/TCP                                                                                                                      4m
-service/istio-telemetry          ClusterIP      10.11.243.107   <none>        9091/TCP,15004/TCP,9093/TCP,42422/TCP                                                                                        4m
-service/jaeger-agent             ClusterIP      None            <none>        5775/UDP,6831/UDP,6832/UDP                                                                                                   4m
-service/jaeger-collector         ClusterIP      10.11.252.236   <none>        14267/TCP,14268/TCP                                                                                                          4m
-service/jaeger-query             ClusterIP      10.11.241.128   <none>        16686/TCP                                                                                                                    4m
-service/kiali                    ClusterIP      10.11.253.48    <none>        20001/TCP                                                                                                                    31s
-service/prometheus               ClusterIP      10.11.249.228   <none>        9090/TCP                                                                                                                     4m
-service/servicegraph             ClusterIP      10.11.253.210   <none>        8088/TCP                                                                                                                     4m
-service/tracing                  ClusterIP      10.11.240.240   <none>        80/TCP                                                                                                                       4m
-service/zipkin                   ClusterIP      10.11.245.137   <none>        9411/TCP                                                                                                                     4m
+NAME                             TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)                                                                                                                      AGE
+service/grafana                  ClusterIP      10.15.243.12    <none>           3000/TCP                                                                                                                     1h
+service/istio-citadel            ClusterIP      10.15.246.33    <none>           8060/TCP,9093/TCP                                                                                                            1h
+service/istio-egressgateway      ClusterIP      10.15.254.221   <none>           80/TCP,443/TCP,15443/TCP                                                                                                     1h
+service/istio-galley             ClusterIP      10.15.242.37    <none>           443/TCP,9093/TCP,9901/TCP                                                                                                    1h
+service/istio-ilbgateway         LoadBalancer   10.15.245.78    10.128.0.23      15011:30423/TCP,15010:31705/TCP,8060:32256/TCP,5353:32522/TCP,443:30089/TCP                                                  1h
+service/istio-ingressgateway     LoadBalancer   10.15.250.79    35.226.166.125   80:31380/TCP,443:31390/TCP,31400:31400/TCP,15029:31415/TCP,15030:30633/TCP,15031:31407/TCP,15032:30076/TCP,15443:31664/TCP   1h
+service/istio-pilot              ClusterIP      10.15.245.206   <none>           15010/TCP,15011/TCP,8080/TCP,9093/TCP                                                                                        1h
+service/istio-policy             ClusterIP      10.15.249.140   <none>           9091/TCP,15004/TCP,9093/TCP                                                                                                  1h
+service/istio-sidecar-injector   ClusterIP      10.15.241.210   <none>           443/TCP                                                                                                                      1h
+service/istio-telemetry          ClusterIP      10.15.243.201   <none>           9091/TCP,15004/TCP,9093/TCP,42422/TCP                                                                                        1h
+service/jaeger-agent             ClusterIP      None            <none>           5775/UDP,6831/UDP,6832/UDP                                                                                                   1h
+service/jaeger-collector         ClusterIP      10.15.243.254   <none>           14267/TCP,14268/TCP                                                                                                          1h
+service/jaeger-query             ClusterIP      10.15.249.19    <none>           16686/TCP                                                                                                                    1h
+service/kiali                    ClusterIP      10.15.254.225   <none>           20001/TCP                                                                                                                    1h
+service/prometheus               ClusterIP      10.15.248.219   <none>           9090/TCP                                                                                                                     1h
+service/servicegraph             ClusterIP      10.15.244.77    <none>           8088/TCP                                                                                                                     1h
+service/tracing                  ClusterIP      10.15.246.41    <none>           80/TCP                                                                                                                       1h
+service/zipkin                   ClusterIP      10.15.241.96    <none>           9411/TCP                                                                                                                     1h
 
 NAME                                           DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deployment.extensions/grafana                  1         1         1            1           4m
-deployment.extensions/istio-citadel            1         1         1            1           4m
-deployment.extensions/istio-egressgateway      1         1         1            1           4m
-deployment.extensions/istio-galley             1         1         1            1           4m
-deployment.extensions/istio-ingressgateway     1         1         1            1           4m
-deployment.extensions/istio-pilot              1         1         1            1           4m
-deployment.extensions/istio-policy             1         1         1            1           4m
-deployment.extensions/istio-sidecar-injector   1         1         1            1           4m
-deployment.extensions/istio-telemetry          1         1         1            1           4m
-deployment.extensions/istio-tracing            1         1         1            1           4m
-deployment.extensions/kiali                    1         1         1            1           30s
-deployment.extensions/prometheus               1         1         1            1           4m
-deployment.extensions/servicegraph             1         1         1            1           4m
+deployment.extensions/grafana                  1         1         1            1           1h
+deployment.extensions/istio-citadel            1         1         1            1           1h
+deployment.extensions/istio-egressgateway      1         1         1            1           1h
+deployment.extensions/istio-galley             1         1         1            1           1h
+deployment.extensions/istio-ilbgateway         1         1         1            1           1h
+deployment.extensions/istio-ingressgateway     1         1         1            1           1h
+deployment.extensions/istio-pilot              1         1         1            1           1h
+deployment.extensions/istio-policy             1         1         1            1           1h
+deployment.extensions/istio-sidecar-injector   1         1         1            1           1h
+deployment.extensions/istio-telemetry          1         1         1            1           1h
+deployment.extensions/istio-tracing            1         1         1            1           1h
+deployment.extensions/kiali                    1         1         1            1           1h
+deployment.extensions/prometheus               1         1         1            1           1h
+deployment.extensions/servicegraph             1         1         1            1           1h
+
 ```
 
 
@@ -228,7 +235,6 @@ export GATEWAY_IP=$(kubectl -n istio-system get service istio-ingressgateway -o 
 echo $GATEWAY_IP
 ```
 
-Note down the ```$GATEWAY_IP```; we will use this later as the entrypoint into the helloworld app
 
 ### Setup some tunnels to each of the services:
 
@@ -267,20 +273,21 @@ basically, a default frontend-backend scheme with two replicas each and the same
 
 
 ```
-kubectl create -f all-istio.yaml
+kubectl apply -f all-istio.yaml
 ```
 
 now use ```kubectl``` to create the ingress-gateway:
 
 
 ```
-kubectl create -f istio-ingress-gateway.yaml
+kubectl apply -f istio-ingress-gateway.yaml
+kubectl apply -f istio-ingress-ilbgateway.yaml
 ```
 
 and then initialize istio on a sample application
 
 ```
-kubectl create -f istio-fev1-bev1.yaml
+kubectl apply -f istio-fev1-bev1.yaml
 ```
 
 Wait until the deployments complete:
@@ -727,6 +734,96 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 "pod: [be-v1-5bc4cc7f6b-sbts8]   node: [gke-cluster-1-default-pool-a2fdcf98-6mrq]"
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
 
+```
+
+### Internal LoadBalancer
+
+The configuration above already sets up an internal loadbalancer on GCP that allows you to access the service internally (eg. from a GCE VM).
+
+The config settings that enabled is is
+
+```
+   --set gateways.istio-ilbgateway.enabled=true
+```
+
+and 
+
+```
+   kubectl apply -f istio-ilbgateway-service.yaml
+```
+
+The latter specifies the exposed port forwarding to the service.  In our case, the exported port is `:443`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: istio-ilbgateway
+  namespace: istio-system
+  annotations:
+    cloud.google.com/load-balancer-type: "internal"
+  labels:
+    chart: gateways
+    heritage: Tiller
+    release: istio
+    app: istio-ilbgateway
+    istio: ilbgateway
+spec:
+  type: LoadBalancer
+  selector:
+    app: istio-ilbgateway
+    istio: ilbgateway
+  ports:
+    -
+      name: grpc-pilot-mtls
+      port: 15011
+    -
+      name: grpc-pilot
+      port: 15010
+    -
+      name: tcp-citadel-grpc-tls
+      port: 8060
+      targetPort: 8060
+    -
+      name: tcp-dns
+      port: 5353
+
+    -
+      name: https
+      port: 443
+```
+
+> Note: the helm template does not allow to setting this automatically (as of 1/9)
+
+
+#### ILB Gateway
+
+Now that the service is setup, acquire the ILB IP allocated
+```
+export ILB_GATEWAY_IP=$(kubectl -n istio-system get service istio-ilbgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo $ILB_GATEWAY_IP
+```
+
+![images/ilb.png](images/ilb.png)
+
+Then from a GCE VM in the same VPC, send some traffic over on the internal address
+
+```
+you@gce-instance-1:~$ curl -vk https://10.128.0.23/
+*   Trying 10.128.0.23...
+
+
+< HTTP/2 200 
+< x-powered-by: Express
+< content-type: text/html; charset=utf-8
+< content-length: 19
+< etag: W/"13-AQEDToUxEbBicITSJoQtsw"
+< date: Wed, 09 Jan 2019 21:27:46 GMT
+< x-envoy-upstream-service-time: 4
+< server: istio-envoy
+< 
+
+Hello from Express!
 ```
 
 ### Egress Rules
