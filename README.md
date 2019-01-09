@@ -27,6 +27,7 @@ i understand something is to rewrite sections and only those sections from the g
 - Egress Policies
 - LUA HttpFilter
 - Authorization
+- Internal LoadBalancer (GCP)
 
 
 ## What is the app you used?
@@ -152,7 +153,7 @@ kubectl apply -f istio_kiali.yaml
 
 Wait maybe 2 to 3 minutes and make sure all the Deployments are live:
 
-# For reference, here are the Istio [installation options](https://istio.io/docs/reference/config/installation-options/)
+- For reference, here are the Istio [installation options](https://istio.io/docs/reference/config/installation-options/)
 
 ### Make sure the Istio installation is ready
 
@@ -317,7 +318,7 @@ Notice that each pod has two containers:  one is from isto, the other is the app
 Also note that in ```all-istio.yaml``` we did not define an ```Ingress``` object though we've defined a TLS secret with a very specific metadata name: ```istio-ingressgateway-certs```.  That is a special name for a secret that is used by Istio to setup its own ingress gateway:
 
 
-#### Ingress Gateway Secret in 1.0.0
+#### Ingress Gateway Secret in 1.0.0+
 
 Note the ```istio-ingress-gateway``` secret specifies the Ingress cert to use (the specific metadata name is special and is **required**)
 
