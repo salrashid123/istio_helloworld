@@ -794,6 +794,54 @@ spec:
       port: 443
 ```
 
+- Gateway:
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: my-gateway-ilb
+spec:
+  selector:
+    istio: ilbgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP  
+    hosts:
+    - "*"
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - "*"    
+    tls:
+      mode: SIMPLE
+      serverCertificate: /etc/istio/ilbgateway-certs/tls.crt
+      privateKey: /etc/istio/ilbgateway-certs/tls.key 
+ ```
+
+- VirtualService:
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: myapp-virtualservice
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - my-gateway
+  - my-gateway-ilb  
+  http:
+  - route:
+    - destination:
+        host: myapp
+        subset: v1
+      weight: 100
+```     
+
 > Note: the helm template does not allow to setting this automatically (as of 1/9)
 
 
