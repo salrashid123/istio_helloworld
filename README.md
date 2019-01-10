@@ -11,7 +11,7 @@ i understand something is to rewrite sections and only those sections from the g
 
 ## Istio version used
 
-* 11/15/18:  Istio 1.1 Prelimanary build `release-1.1-20181115-09-15`
+* 01/09/19:  Istio 1.0.5
 * [Prior Istio Versions](https://github.com/salrashid123/istio_helloworld/tags)
 
 
@@ -82,13 +82,9 @@ kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-ad
 
 kubectl create ns istio-system
 
-#export ISTIO_VERSION=1.1
-#wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz
-#tar xvzf istio-$ISTIO_VERSION-linux.tar.gz
-
-export ISTIO_VERSION=release-1.1-20181115-09-15
-wget https://storage.googleapis.com/istio-prerelease/daily-build/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz
-tar xf istio-$ISTIO_VERSION-linux.tar.gz
+export ISTIO_VERSION=1.0.5
+wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz
+tar xvzf istio-$ISTIO_VERSION-linux.tar.gz
 
 wget https://storage.googleapis.com/kubernetes-helm/helm-v2.11.0-linux-amd64.tar.gz
 tar xf helm-v2.11.0-linux-amd64.tar.gz
@@ -96,14 +92,10 @@ tar xf helm-v2.11.0-linux-amd64.tar.gz
 export PATH=`pwd`/istio-$ISTIO_VERSION/bin:`pwd`/linux-amd64/:$PATH
 
 kubectl apply -f istio-$ISTIO_VERSION/install/kubernetes/helm/istio/templates/crds.yaml
-kubectl apply -f istio-$ISTIO_VERSION/install/kubernetes/helm/subcharts/certmanager/templates/crds.yaml
+kubectl apply -f istio-$ISTIO_VERSION/install/kubernetes/helm/istio/charts/certmanager/templates/crds.yaml
 
-sleep 15
 
 helm init --client-only
-#helm repo add istio.io https://storage.googleapis.com/istio-release/releases/1.1.0/charts/
-helm repo add istio.io https://storage.googleapis.com/istio-prerelease/daily-build/release-1.1-latest-daily/charts
-helm dependency update istio-$ISTIO_VERSION/install/kubernetes/helm/istio
 
 # https://github.com/istio/istio/tree/master/install/kubernetes/helm/istio#configuration
 # https://istio.io/docs/reference/config/installation-options/
@@ -275,19 +267,10 @@ basically, a default frontend-backend scheme with two replicas each and the same
 
 ```
 kubectl apply -f all-istio.yaml
-```
 
-now use ```kubectl``` to create the ingress-gateway:
-
-
-```
 kubectl apply -f istio-ingress-gateway.yaml
 kubectl apply -f istio-ingress-ilbgateway.yaml
-```
 
-and then initialize istio on a sample application
-
-```
 kubectl apply -f istio-fev1-bev1.yaml
 ```
 
@@ -336,7 +319,7 @@ type: kubernetes.io/tls
 
 Remember we've acquired the ```$GATEWAY_IP``` earlier:
 
-```
+```bash
 export GATEWAY_IP=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 echo $GATEWAY_IP
 ```
@@ -597,11 +580,11 @@ Normally, you can use that destination rule to split traffic between services al
 ```yaml
   - route:
     - destination:
-        host: app1
+        host: myapp
         subset: v1
       weight: 50
     - destination:
-        host: app2
+        host: myapp
         subset: v10
       weight: 50
 ```
@@ -617,9 +600,6 @@ Once you make this change, use ```kubectl``` to make the change happen
 ```
 kubectl replace -f istio-route-version-fev1-bev1v2.yaml
 ```
-
-
-```kubectl delete -f all-istio.yaml```
 
 ```
 for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
@@ -875,8 +855,14 @@ you@gce-instance-1:~$ curl -vk https://10.128.0.23/
 Hello from Express!
 ```
 
+
 ### Egress Rules
 
+By default, istio blocks the cluster from making outbound requests.  TO achieve this, there are several options.
+
+* Egress Rules
+* Egress Gateway
+* Setting `global.proxy.includeIPRanges`
 
 Egress rules prevent outbound calls from the server except with whiteliste addresses.
 
@@ -933,13 +919,9 @@ spec:
 ```
 
 
-Allows only ```http://www.bbc.com/*``` and ```https://www.google.com/*``` but here is the catch:  you must change your code in the container to make a call to
+Allows only ```http://www.bbc.com/*``` and ```https://www.google.com/*``` 
 
-```http://www.bbc.com:80``` and ```http://www.google.com:443/```  (NOTE the protocol is different and the port is specified)
-
-This is pretty unusable ..future releases of egress+istio will use SNI so users do not have to change their client code like this.
-
-Anyway, to test, the `/hostz` endpoint tries to fetch the following URLs:
+To test the default policies, the `/requestz` endpoint tries to fetch the following URLs:
 
 ```javascript
     var urls = [
@@ -952,14 +934,11 @@ Anyway, to test, the `/hostz` endpoint tries to fetch the following URLs:
     ]
 ```
 
-ok, instead of setting up bypass ranges, lets setup this customer for these egress rules.
-
 First make sure there is an inbound rule already running:
 
 ```
 kubectl replace -f istio-fev1-bev1.yaml
 ```
-
 
 - Without egress rule, requests will fail:
 
@@ -1015,9 +994,11 @@ gives
 
 ```
 
+> Note: the `404` response for the ```bbc.com``` entry is the actual denial rule from the istio-proxy
+
 #### With egress rule
 
-then apply the egress policy:
+then apply the egress policy which allows ```www.bbc.com:80``` and ```www.google.com:443```
 
 ```
 kubectl create -f istio-egress-rule.yaml
@@ -1076,9 +1057,10 @@ Notice that only one of the hosts worked over SSL worked
 ### Egress Gateway
 
 THe egress rule above initiates the proxied conneciton from each sidecar....but why not initiate the SSL connection from a set of bastion/egress
-gateways we already setup?   THis is where the `Egress Gateway` configurations come up.
+gateways we already setup?   THis is where the [Egress Gateway](https://istio.io/docs/examples/advanced-egress/egress-gateway/) configurations come up but inorder to use this, you must emit the request as `http://` protocol.  For example, if you want to contact `https://www.yahoo.com/robots.txt` you must change the code making the outbound call to `http://www.yahoo.com:443/robots.txt`!
 
-First lets revert the config we setup above
+
+So.. lets revert the config we setup above
 
 ```
 kubectl delete -f istio-egress-rule.yaml
@@ -1087,7 +1069,7 @@ kubectl delete -f istio-egress-rule.yaml
 then lets apply the rule for the gateway:
 
 ```bash
-kubectl create -f istio-egress-rule.yaml
+kubectl apply -f istio-egress-gateway.yaml
 
 
 [
@@ -1125,17 +1107,25 @@ kubectl create -f istio-egress-rule.yaml
       "name": "RequestError",
       "message": "Error: write EPROTO 140366876167040:error:1408F10B:SSL routines:ssl3_get_record:wrong version  },
   {
+{
     "url": "http://www.yahoo.com:443/robots.txt",
+    "body": "<!DOCTYPE html>\n<html lang=\"en-us\">\n  <head>\n    <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n    <meta charset=\"utf-8\">\n    <title>Yahoo</title>\n    <meta name=\"viewport\" content=\"width=device-width,initial-scale=1,minimal-ui\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <style>\n      html {\n ",
     "statusCode": 404
   }
 ]
 
 ```
 
-
 ```
 kubectl logs $(kubectl get pod -l istio=egressgateway -n istio-system -o jsonpath='{.items[0].metadata.name}') egressgateway -n istio-system | tail
 ```
+
+Notice that only http request to yahoo succeeded on port `:443`.  Needless to say, this is pretty unusable; you have to originate ssl traffic from the host system itself or bypass the IP ranges rquests
+
+### Bypass Envoy entirely
+
+You can also configure the `global.proxy.includeIPRanges=` variable to completely bypass the IP ranges for certain serivces.   This setting is described under [Calling external services directly](https://istio.io/docs/tasks/traffic-management/egress/#calling-external-services-directly) and details the ranges that _should_ get coverted by the proxy.  For GKE, you need to conver the subnets included and allocated: 
+
 
 ### LUA HTTPFilters
 
@@ -1235,7 +1225,7 @@ curl -vk https://$GATEWAY_IP/version
 but access to the backend gives:
 
 ```
-curl -v https://$GATEWAY_IP/hostz
+curl -vk https://$GATEWAY_IP/hostz
 
 < HTTP/2 200
 < x-powered-by: Express
