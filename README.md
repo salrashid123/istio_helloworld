@@ -2,8 +2,8 @@
 
 ## What is this repo?
 
-This is a really simple application I wrote over holidays a couple weeks back that detail my experiences and
-feedback.  To be clear, its a really, really basic NodeJS application that i used but more importantly, it covers
+This is a really simple application I wrote over holidays a year ago (12/17) that details my experiences and
+feedback with istio.  To be clear, its a really, really basic NodeJS application that i used but more importantly, it covers
 the main sections of [Istio](https://istio.io/) that i was seeking to understand better (if even just as a helloworld).  
 
 I do know isito has the "[bookinfo](https://github.com/istio/istio/tree/master/samples/bookinfo)" application but the best way
@@ -28,6 +28,7 @@ i understand something is to rewrite sections and only those sections from the g
 - LUA HttpFilter
 - Authorization
 - Internal LoadBalancer (GCP)
+- [Mixer Out of Process Authorization Adapter](https://github.com/salrashid123/istio_custom_auth_adapter)
 
 
 ## What is the app you used?
@@ -41,7 +42,7 @@ The endpoints on this app are as such:
 - ```/version```: Returns just the "process.env.VER" variable that was set on the Deployment ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L37))
 - ```/backend```: Return the nodename, pod name.  Designed to only get called as if the applciation running is a 'backend' ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L41))
 - ```/hostz```:  Does a DNS SRV lookup for the 'backend' and makes an http call to its '/backend', endpoint ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L45))
-- ```/requestz```:  Makes an HTTP fetch for three external URLs (used to show egress rules) ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L95))
+- ```/requestz```:  Makes an HTTP fetch for several external URLs (used to show egress rules) ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L95))
 - ```/headerz```:  Displays inbound headers
  ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L115))
 
@@ -231,7 +232,7 @@ echo $GATEWAY_IP
 
 ### Setup some tunnels to each of the services:
 
-Open up three new shell windows and type in one line into each:
+Open up several new shell windows and type in one line into each:
 ```
 kubectl -n istio-system port-forward $(kubectl -n istio-system get pod -l app=grafana -o jsonpath='{.items[0].metadata.name}') 3000:3000
 
@@ -242,7 +243,7 @@ kubectl port-forward -n istio-system $(kubectl get pod -n istio-system -l app=ja
 kubectl -n istio-system port-forward $(kubectl -n istio-system get pod -l app=kiali -o jsonpath='{.items[0].metadata.name}') 20001:20001
 ```
 
-Open up a browser (three tabs) and go to:
+Open up a browser (4 tabs) and go to:
 - Kiali http://localhost:20001/kiali (username: admin, password: mysecret)
 - ServiceGraph http://localhost:8088/dotviz
 - Grafana http://localhost:3000/dashboard/db/istio-dashboard
@@ -260,7 +261,7 @@ The default ```all-istio.yaml``` runs:
 - - be-v1:  1 replicas
 - - be-v2:  1 replicas
 
-basically, a default frontend-backend scheme with two replicas each and the same 'v1' verison.
+basically, a default frontend-backend scheme with one replicas each for each `v1` and `v2` versions.
 
 > Note: the default yaml pulls and run my dockerhub image- feel free to change this if you want.
 
@@ -296,7 +297,7 @@ service/kubernetes   ClusterIP   10.11.240.1     <none>        443/TCP    29m
 service/myapp        ClusterIP   10.11.255.238   <none>        8080/TCP   4m
 ```
 
-Notice that each pod has two containers:  one is from isto, the other is the applicaiton itself (this is because we have automatic sidecar injection enabled).
+Notice that each pod has two containers:  one is from isto, the other is the applicaiton itself (this is because we have automatic sidecar injection enabled on the `default` namespace).
 
 Also note that in ```all-istio.yaml``` we did not define an ```Ingress``` object though we've defined a TLS secret with a very specific metadata name: ```istio-ingressgateway-certs```.  That is a special name for a secret that is used by Istio to setup its own ingress gateway:
 
@@ -326,27 +327,27 @@ echo $GATEWAY_IP
 
 ### Send Traffic
 
-This section shows basic user->frontend traffic and how serviceGrpah and Grafana consoles:
+This section shows basic user->frontend traffic and see the topology and telemetry in the Kiali and Grafana consoles:
 
 #### Frontend only
 
-So...lets send traffic with the ip; (the ```/varz``` endpoint will send traffic to the frontend service only)
+So...lets send traffic with the ip to the ```/versions```  on the frontend
 
 ```bash
 for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
 ```
 
-You should see a sequence of 1's indicating the version of the frontend ```/version``` you just hit
+You should see a sequence of 1's indicating the version of the frontend you just hit
 ```
 111111111111111111111111111111111
 ```
 (source: [/version](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L37) endpoint)
 
-You should also see on servicegraph:
+You should also see on kiali just traffic from ingress -> `fe:v1`
 
 ![alt text](images/kiali_fev1.png)
 
-and
+and in grafana:
 
 ![alt text](images/grafana_fev1.png)
 
@@ -355,7 +356,7 @@ and
 
 Now the next step in th exercise:
 
-to send requests to ```user-->frontend--> backend```;  we'll use the applications ```/hostz``` endpoint to do that.
+to send requests to ```user-->frontend--> backend```;  we'll use the  ```/hostz``` endpoint to do that.  Remember, the `/hostz` endpoint takes a frontend request, sends it to the backend which inturn echos back the podName the backend runs as.  The entire response is then returned to the user.  This is just a way to show the which backend host processed the requests.
 
 (note i'm using  [jq](https://stedolan.github.io/jq/) utility to parse JSON)
 
@@ -363,7 +364,7 @@ to send requests to ```user-->frontend--> backend```;  we'll use the application
 for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
 ```
 
-you should see output indicating traffic from the v1 backend verison: ```be-v1-*```
+you should see output indicating traffic from the v1 backend verison: ```be-v1-*```.  Thats what we expect since our original rule sets defines only `fe:v1` and `be:v1` as valid targets.
 
 ```
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
@@ -380,7 +381,7 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 "pod: [be-v1-5bc4cc7f6b-sbts8]    node: [gke-cluster-1-default-pool-a2fdcf98-6mrq]"
 ```
 
-Note both ServiceGraph and Grafana shows both frontend and backend service telemetry and that traffic to ```be:v1``` is 0 req/s
+Note both Kiali and Grafana shows both frontend and backend service telemetry and traffic to ```be:v1```
 
 ![alt text](images/kiali_fev1_bev1.png)
 
@@ -389,16 +390,18 @@ Note both ServiceGraph and Grafana shows both frontend and backend service telem
 
 ## Route Control
 
-This section details how to slectively send traffic to service ```versions```
+This section details how to selectively send traffic to specific service versions and control traffic routing.
 
 ### Selective Traffic
 
 In this sequence,  we will setup a routecontrol to:
 
 1. Send all traffic to ```myapp:v1```.  
-2. traffic from ```myapp:v1``` to be can only go to ```be:v2```
+2. traffic from ```myapp:v1``` can only go to ```be:v2```
 
-The yaml on ```istio-fev1-bev2.yaml``` would direct inbound traffic for ```myapp:v1``` to go to ```be:v2``` (note the ```sourceLabels:``` part that specifies requests inbound from ```myapp:v1```).  The snippet for this config is:
+Basically, this is a convoluted way to send traffic from `fe:v1`-> `be:v2` even if all services and versions are running.
+
+The yaml on ```istio-fev1-bev2.yaml``` would direct inbound traffic for ```myapp:v1``` to go to ```be:v2``` based on the ```sourceLabels:```.  The snippet for this config is:
 
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
@@ -441,15 +444,15 @@ spec:
       version: v2
 ```
 
-Then setup the config with kubectl:
+So lets apply the config with kubectl:
 
 ```
 kubectl replace -f istio-fev1-bev2.yaml
 ```
 
-After sending traffic to check which backend system was called ```/hostz```, we see responses from only ```be-v2-*```.
-What the ```/hosts``` endpoint does is takes a users request to ```fe-*``` and targets any ```be-*```.  Since we only have ```fe-v1``` instances
-running, the traffic outbound for ```be-*``` must terminate at a ```be-v2``` version given the rule above:
+After sending traffic,  check which backend system was called by invoking ```/hostz``` endpoint on the frontend. 
+
+What the ```/hostz``` endpoint does is takes a users request to ```fe-*``` and targets any ```be-*``` that is valid.  Since we only have ```fe-v1``` instances running and the fact we setup a rule such that only traffic from `fe:v1` can go to `be:v2`, all the traffic outbound for ```be-*``` must terminate at a ```be-v2```:
 
 ```
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
@@ -519,8 +522,7 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 
 Now lets setup a more selective route based on a specific path in the URI:
 
-- Route requests to myapp where path=/version to only ```v1```
-  A request to ```http://gateway_ip/version``` will go to ```v1``` only
+- The rule we're defining is: "_First_ route requests to myapp where `path=/version` to only go to the ```v1``` set"...if there is no match, fall back to the default routs where you send 20% traffic to `v1` and 80% traffic to `v2`
 
 
 ```yaml
@@ -558,12 +560,13 @@ spec:
 kubectl replace -f istio-route-version-fev1-bev1v2.yaml
 ```
 
+So check all requests to `/version` are `fe:v1`
 ```
 for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; done
 1111111111111111111
 ```
 
-You may have noted how the route to the destination is weighted split vs delcared round robin (eg:)
+You may have noted how the route to any other endpoint other than `/version` destination is weighted split and not delcared round robin (eg:)
 ```yaml
   - route:
     - destination:
@@ -576,41 +579,24 @@ You may have noted how the route to the destination is weighted split vs delcare
       weight: 80
 ```
 
-Normally, you can use that destination rule to split traffic between services alltogether (eg, in real life you may have):
-```yaml
-  - route:
-    - destination:
-        host: myapp
-        subset: v1
-      weight: 50
-    - destination:
-        host: myapp
-        subset: v10
-      weight: 50
-```
 
-which for any other endpoint other than endpoint other thatn ```/version```, each request is split 50/50 between two destination services (```app1``` and ```app2```)
-
-
-Anyway, now lets edit rule to  and change the prefix match to ```/xversion``` so the match doesn't apply
-  A request to http://gateway_ip/version will go to v1 and v2 (since the path rule did not match)
-
-Once you make this change, use ```kubectl``` to make the change happen
+Anyway, now lets edit rule to  and change the prefix match to ```/xversion``` so the match *doesn't apply*.   What we expect is a request to http://gateway_ip/version will go to v1 and v2 (since the path rule did not match and the split is the fallback rule.
 
 ```
 kubectl replace -f istio-route-version-fev1-bev1v2.yaml
 ```
+Observe the version of the frontend you're hitting:
 
 ```
 for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
 2121212222222222222221122212211222222222222222
 ```
 
-What you're seeing is ```myapp-v1``` now getting about 20% of the traffic while ```myapp-v2``` gets 80%
+What you're seeing is ```myapp-v1``` now getting about 20% of the traffic while ```myapp-v2``` gets 80% because the previous rule doens't match.
 
 ### Destination Rules
 
-These rules sends all traffic from ```myapp-v1``` round-robin to both version of the backend.
+Lets configure Destination rules such that all traffic from ```myapp-v1``` round-robins to both version of the backend.
 
 First lets  force all gateway requests to go to ```v1``` only:
 
