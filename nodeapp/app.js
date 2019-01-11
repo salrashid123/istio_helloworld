@@ -74,12 +74,13 @@ app.get('/hostz', (request, response) => {
   });
 })
 
-function getURL(u) {
+function getURL(u, headers) {
   var options = {
     method: 'GET',
     uri: u,
     resolveWithFullResponse: true,
     simple: false,
+    headers: headers
   };
   return rp(options)
     .then(function (resp) {
@@ -106,7 +107,7 @@ app.get('/requestz', (request, response) => {
     ]
 
     urls.forEach(function(element){
-      resp_promises.push( getURL(element) )
+      resp_promises.push( getURL(element, {}) )
     });
 
     Promise.all(resp_promises).then(function(value) {
@@ -119,6 +120,26 @@ app.get('/requestz', (request, response) => {
 app.get('/headerz', (request, response) => {
   logger.info('/headerz');
   response.send(request.headers);
+})
+
+app.get('/metadata', (request, response) => {
+
+  var resp_promises = []
+  var urls = [
+              'http://metadata.google.internal/computeMetadata/v1/project/project-id',
+              'http://metadata/computeMetadata/v1/project/project-id',
+              'http://169.254.169.254/computeMetadata/v1/project/project-id'
+  ]
+
+  urls.forEach(function(element){
+    resp_promises.push( getURL(element, {'Metadata-Flavor':'Google'}) )
+  });
+
+  Promise.all(resp_promises).then(function(value) {
+    response.send(value);
+  }, function(value) {
+    response.send(value);
+  });
 })
 
 app.listen(port, (err) => {

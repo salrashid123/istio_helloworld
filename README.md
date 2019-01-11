@@ -29,7 +29,7 @@ i understand something is to rewrite sections and only those sections from the g
 - Authorization
 - Internal LoadBalancer (GCP)
 - [Mixer Out of Process Authorization Adapter](https://github.com/salrashid123/istio_custom_auth_adapter)
-
+- Access GCE MetadataServer
 
 ## What is the app you used?
 
@@ -42,9 +42,10 @@ The endpoints on this app are as such:
 - ```/version```: Returns just the "process.env.VER" variable that was set on the Deployment ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L37))
 - ```/backend```: Return the nodename, pod name.  Designed to only get called as if the applciation running is a 'backend' ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L41))
 - ```/hostz```:  Does a DNS SRV lookup for the 'backend' and makes an http call to its '/backend', endpoint ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L45))
-- ```/requestz```:  Makes an HTTP fetch for several external URLs (used to show egress rules) ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L95))
+- ```/requestz```:  Makes an HTTP fetch for several external URLs (used to show egress rules) ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L120))
 - ```/headerz```:  Displays inbound headers
  ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L115))
+- ```/metadata```: Access the GCP MetadataServer using hostname and link-local IP address ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L125))
 
 I build and uploaded this app to dockerhub at
 
@@ -987,7 +988,7 @@ gives
 then apply the egress policy which allows ```www.bbc.com:80``` and ```www.google.com:443```
 
 ```
-kubectl create -f istio-egress-rule.yaml
+kubectl apply -f istio-egress-rule.yaml
 ```
 
 
@@ -1113,8 +1114,100 @@ Notice that only http request to yahoo succeeded on port `:443`.  Needless to sa
 You can also configure the `global.proxy.includeIPRanges=` variable to completely bypass the IP ranges for certain serivces.   This setting is described under [Calling external services directly](https://istio.io/docs/tasks/traffic-management/egress/#calling-external-services-directly) and details the ranges that _should_ get coverted by the proxy.  For GKE, you need to conver the subnets included and allocated: 
 
 
-### LUA HTTPFilters
+### GCE MetadataServer
 
+The `/metadata` endpoint access the GCE metadata server and returns the current projectID.  This endpoint makes three separate requests using the three formats I've see GCP client libraries use.  (note: the hostnames are supposed to resolve to the link local IP address shown below)
+
+```javascript
+app.get('/metadata', (request, response) => {
+
+  var resp_promises = []
+  var urls = [
+              'http://metadata.google.internal/computeMetadata/v1/project/project-id',
+              'http://metadata/computeMetadata/v1/project/project-id',
+              'http://169.254.169.254/computeMetadata/v1/project/project-id'
+  ]
+```
+
+So if you make an inital request, you'll see `404` errors from Envoy since we did not setup any rules.
+
+```json
+[
+  {
+    "url": "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+    "body": "",
+    "statusCode": 404
+  },
+  {
+    "url": "http://metadata/computeMetadata/v1/project/project-id",
+    "body": "",
+    "statusCode": 404
+  },
+  {
+    "url": "http://169.254.169.254/computeMetadata/v1/project/project-id",
+    "body": "",
+    "statusCode": 404
+  }
+]
+```
+
+So lets do just that:
+
+```
+  kubectl apply -f istio-egress-rule-metadata.yaml
+```
+
+Then what we see is are two of the three hosts succeed since the `.yaml` file did not define an entry for `metadata`
+
+```json
+[
+  {
+    "url": "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+    "body": "mineral-minutia-820",
+    "statusCode": 200
+  },
+  {
+    "url": "http://metadata/computeMetadata/v1/project/project-id",
+    "body": "",
+    "statusCode": 404
+  },
+  {
+    "url": "http://169.254.169.254/computeMetadata/v1/project/project-id",
+    "body": "mineral-minutia-820",
+    "statusCode": 200
+  }
+]
+```
+
+
+Well, why didn't we?  The parser for the pilot did't like it if we added in 
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: metadata-ext
+spec:
+  hosts:
+  - metadata.google.internal
+  - metadata
+  - 169.254.169.254
+  ports:
+  - number: 80
+    name: http
+    protocol: HTTP
+  resolution: DNS
+  location: MESH_EXTERNAL
+```
+
+```bash
+$ kubectl apply -f istio-egress-rule-metadata.yaml 
+Error from server: error when creating "istio-egress-rule-metadata.yaml": admission webhook "pilot.validation.istio.io" denied the request: configuration is invalid: invalid host metadata
+```
+
+Is that a problem?  Maybe not...Most of the [google-auth libraries](https://github.com/googleapis/google-auth-library-python/blob/master/google/auth/compute_engine/_metadata.py#L35) uses the fully qualified hostname or IP address (it used to use just `metadata` so that wou've been a problem)
+
+### LUA HTTPFilters
 
 The following will setup a simple Request/Response LUA `EnvoyFilter` for the frontent `myapp`:
 
