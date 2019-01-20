@@ -1006,7 +1006,7 @@ curl -k -s  https://$GATEWAY_IP/requestz | jq  '.'
 
 gives
 
-```json
+```bash
 [
   {
     "url": "https://www.google.com/robots.txt",
@@ -1069,7 +1069,7 @@ gives
 curl -s -k https://$GATEWAY_IP/requestz | jq  '.'
 ```
 
-```json
+```bash
 [
   {
     "url": "https://www.google.com/robots.txt",
@@ -1132,7 +1132,7 @@ then lets apply the rule for the gateway:
 kubectl apply -f istio-egress-gateway.yaml
 ```
 
-```json
+```bash
 [
   {
     "url": "https://www.google.com/robots.txt",
