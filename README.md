@@ -17,19 +17,18 @@ i understand something is to rewrite sections and only those sections from the g
 
 ## What i tested
 
-- Basic istio Installation on Google Kubernetes Engine.
-- Grafana
-- Prometheus
-- Kiali and SourceGraph
-- Jaeger
-- Route Control
-- Destination Rules
-- Egress Policies
-- LUA HttpFilter
-- Authorization
-- Internal LoadBalancer (GCP)
+- [Basic istio Installation on Google Kubernetes Engine](#lets-get-started)
+- [Grafana, Prometheus, Kiali, Jaeger](#setup-some-tunnels-to-each-of-the-services)
+- [Route Control](#route-control)
+- [Canary Deployments with VirtualService](#canary-deployments-with-virtualservice)
+- [Destination Rules](#destination-rules)
+- [Egress Rules](#egress-rules)
+- [Egress Gateway](#egress-gateway)
+- [LUA HttpFilter](#lua-httpfilter)
+- [Authorization](#autorization)
+- [Internal LoadBalancer (GCP)](#internal-loadbalancer)
 - [Mixer Out of Process Authorization Adapter](https://github.com/salrashid123/istio_custom_auth_adapter)
-- Access GCE MetadataServer
+- [Access GCE MetadataServer](#access-GCE-metadataServer)
 
 ## What is the app you used?
 
@@ -231,7 +230,7 @@ echo $GATEWAY_IP
 ```
 
 
-### Setup some tunnels to each of the services:
+### Setup some tunnels to each of the services
 
 Open up several new shell windows and type in one line into each:
 ```
@@ -1052,7 +1051,6 @@ gives
 
 > Note: the `404` response for the ```bbc.com``` entry is the actual denial rule from the istio-proxy
 
-#### With egress rule
 
 then apply the egress policy which allows ```www.bbc.com:80``` and ```www.google.com:443```
 
@@ -1189,7 +1187,7 @@ Notice that only http request to yahoo succeeded on port `:443`.  Needless to sa
 You can also configure the `global.proxy.includeIPRanges=` variable to completely bypass the IP ranges for certain serivces.   This setting is described under [Calling external services directly](https://istio.io/docs/tasks/traffic-management/egress/#calling-external-services-directly) and details the ranges that _should_ get covered by the proxy.  For GKE, you need to cover the subnets included and allocated: 
 
 
-### GCE MetadataServer
+### Access GCE MetadataServer
 
 The `/metadata` endpoint access the GCE metadata server and returns the current projectID.  This endpoint makes three separate requests using the three formats I've see GCP client libraries use.  (note: the hostnames are supposed to resolve to the link local IP address shown below)
 
