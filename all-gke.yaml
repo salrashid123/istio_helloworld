@@ -96,7 +96,7 @@ kind: Deployment
 metadata:
   name: myapp-v2
 spec:
-  replicas: 0 
+  replicas: 1
   template:
     metadata:
       labels:
@@ -184,7 +184,7 @@ metadata:
     type: be
     version: v2
 spec:
-  replicas: 0
+  replicas: 1
   template:
     metadata:
       labels:

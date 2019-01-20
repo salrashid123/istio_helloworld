@@ -3,7 +3,7 @@
 ## What is this repo?
 
 This is a really simple application I wrote over holidays a year ago (12/17) that details my experiences and
-feedback with istio.  To be clear, its a really, really basic NodeJS application that i used but more importantly, it covers
+feedback with istio.  To be clear, its a really basic NodeJS application that i used here but more importantly, it covers
 the main sections of [Istio](https://istio.io/) that i was seeking to understand better (if even just as a helloworld).  
 
 I do know isito has the "[bookinfo](https://github.com/istio/istio/tree/master/samples/bookinfo)" application but the best way
@@ -40,8 +40,8 @@ The endpoints on this app are as such:
 - ```/```:  Does nothing;  ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L24))
 - ```/varz```:  Returns all the environment variables on the current Pod ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L33))
 - ```/version```: Returns just the "process.env.VER" variable that was set on the Deployment ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L37))
-- ```/backend```: Return the nodename, pod name.  Designed to only get called as if the applciation running is a 'backend' ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L41))
-- ```/hostz```:  Does a DNS SRV lookup for the 'backend' and makes an http call to its '/backend', endpoint ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L45))
+- ```/backend```: Return the nodename, pod name.  Designed to only get called as if the applciation running is a `backend` ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L41))
+- ```/hostz```:  Does a DNS SRV lookup for the `backend` and makes an http call to its `/backend`, endpoint ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L45))
 - ```/requestz```:  Makes an HTTP fetch for several external URLs (used to show egress rules) ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L120))
 - ```/headerz```:  Displays inbound headers
  ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L115))
@@ -53,8 +53,8 @@ I build and uploaded this app to dockerhub at
 docker.io/salrashid123/istioinit:1
 docker.io/salrashid123/istioinit:2
 ```
-(to simulat two release version of an app ...yeah, theyr'e the same app but during deployment i set an env-var directly):
 
+(basically, they're both the same application but each has an environment variable that signifies which 'verison; they represent.  The version information for each image is returned by the `/version` endpoint)
 
 You're also free to build and push these images directly:
 ```
@@ -118,7 +118,7 @@ kubectl label namespace default istio-injection=enabled
 
 
 export USERNAME=$(echo -n 'admin' | base64)
-export PASSPHRASE=$(echo -n 'mysecret' | base64)
+export PASSPHRASE=$(echo -n 'admin' | base64)
 export NAMESPACE=istio-system
 
 echo '
@@ -245,7 +245,7 @@ kubectl -n istio-system port-forward $(kubectl -n istio-system get pod -l app=ki
 ```
 
 Open up a browser (4 tabs) and go to:
-- Kiali http://localhost:20001/kiali (username: admin, password: mysecret)
+- Kiali http://localhost:20001/kiali (username: admin, password: admin)
 - ServiceGraph http://localhost:8088/dotviz
 - Grafana http://localhost:3000/dashboard/db/istio-dashboard
 - Jaeger http://localhost:16686
@@ -262,7 +262,7 @@ The default ```all-istio.yaml``` runs:
 - - be-v1:  1 replicas
 - - be-v2:  1 replicas
 
-basically, a default frontend-backend scheme with one replicas each for each `v1` and `v2` versions.
+basically, a default frontend-backend scheme with one replicas for each `v1` and `v2` versions.
 
 > Note: the default yaml pulls and run my dockerhub image- feel free to change this if you want.
 
@@ -361,14 +361,15 @@ to send requests to ```user-->frontend--> backend```;  we'll use the  ```/hostz`
 
 (note i'm using  [jq](https://stedolan.github.io/jq/) utility to parse JSON)
 
-```
+```bash
 for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
 ```
 
 you should see output indicating traffic from the v1 backend verison: ```be-v1-*```.  Thats what we expect since our original rule sets defines only `fe:v1` and `be:v1` as valid targets.
 
-```
+```bash
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
+
 "pod: [be-v1-5bc4cc7f6b-sbts8]    node: [gke-cluster-1-default-pool-a2fdcf98-6mrq]"
 "pod: [be-v1-5bc4cc7f6b-sbts8]    node: [gke-cluster-1-default-pool-a2fdcf98-6mrq]"
 "pod: [be-v1-5bc4cc7f6b-sbts8]    node: [gke-cluster-1-default-pool-a2fdcf98-6mrq]"
@@ -455,8 +456,9 @@ After sending traffic,  check which backend system was called by invoking ```/ho
 
 What the ```/hostz``` endpoint does is takes a users request to ```fe-*``` and targets any ```be-*``` that is valid.  Since we only have ```fe-v1``` instances running and the fact we setup a rule such that only traffic from `fe:v1` can go to `be:v2`, all the traffic outbound for ```be-*``` must terminate at a ```be-v2```:
 
-```
+```bash
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; done
+
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
@@ -469,7 +471,7 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 ```
 
 and on the frontend version is always one.
-```
+```bash
 for i in {1..100}; do curl -k https://$GATEWAY_IP/version; sleep 1; done
 11111111111111111111111111111
 ```
@@ -487,14 +489,14 @@ kubectl replace -f istio-fev1v2-bev1v2.yaml
 ```
 
 then frontend is both v1 and v2:
-```
+```bash
 for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version;  done
 111211112122211121212211122211
 ```
 
 and backend is responses comes from both be-v1 and be-v2
 
-```
+```bash
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body';  done
 
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
@@ -523,7 +525,7 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 
 Now lets setup a more selective route based on a specific path in the URI:
 
-- The rule we're defining is: "_First_ route requests to myapp where `path=/version` to only go to the ```v1``` set"...if there is no match, fall back to the default routs where you send 20% traffic to `v1` and 80% traffic to `v2`
+- The rule we're defining is: "_First_ route requests to myapp where `path=/version` to only go to the ```v1``` set"...if there is no match, fall back to the default routes where you send `20%` traffic to `v1` and `80%` traffic to `v2`
 
 
 ```yaml
@@ -580,7 +582,6 @@ You may have noted how the route to any other endpoint other than `/version` des
       weight: 80
 ```
 
-
 Anyway, now lets edit rule to  and change the prefix match to ```/xversion``` so the match *doesn't apply*.   What we expect is a request to http://gateway_ip/version will go to v1 and v2 (since the path rule did not match and the split is the fallback rule.
 
 ```
@@ -588,13 +589,39 @@ kubectl replace -f istio-route-version-fev1-bev1v2.yaml
 ```
 Observe the version of the frontend you're hitting:
 
-```
+```bash
 for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
 2121212222222222222221122212211222222222222222
 ```
 
-What you're seeing is ```myapp-v1``` now getting about 20% of the traffic while ```myapp-v2``` gets 80% because the previous rule doens't match.
+What you're seeing is ```myapp-v1``` now getting about `20%` of the traffic while ```myapp-v2``` gets `80%` because the previous rule doens't match.
 
+#### Canary Deployments with VirtualService
+
+You can use this traffic distribuion mechanism to run canary deployments between released versions.  For example, a rule like the following will split the traffic between `v1|v2` at `80/20` which you can use to gradually roll traffic over to `v2` by applying new percentage weights.
+
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: myapp-virtualservice
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - my-gateway
+  http:
+  - route:
+    - destination:
+        host: myapp
+        subset: v1
+      weight: 80
+    - destination:
+        host: myapp
+        subset: v2
+      weight: 20
+```
 ### Destination Rules
 
 Lets configure Destination rules such that all traffic from ```myapp-v1``` round-robins to both version of the backend.
@@ -653,7 +680,7 @@ kubectl replace -f istio-fev1-bev1v2.yaml
 
 you'll see frontend request all going to ```fe-v1```
 
-```
+```bash
 for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
 11111111111111
 ```
@@ -677,8 +704,6 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
 "pod: [be-v1-5bc4cc7f6b-sbts8]   node: [gke-cluster-1-default-pool-a2fdcf98-6mrq]"
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
-
-
 ```
 
 Now change the ```istio-fev1-bev1v2.yaml```  to ```RANDOM``` and see response is from v1 and v2 random:
@@ -701,26 +726,25 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
 "pod: [be-v1-5bc4cc7f6b-sbts8]   node: [gke-cluster-1-default-pool-a2fdcf98-6mrq]"
 "pod: [be-v2-9dd4cf9b8-qw45b]    node: [gke-cluster-1-default-pool-a2fdcf98-97hc]"
-
 ```
 
 ### Internal LoadBalancer
 
-The configuration above already sets up an internal loadbalancer on GCP that allows you to access the service internally (eg. from a GCE VM).
+The configuration here  sets up an internal loadbalancer on GCP to access an exposed istio service.
 
-The config settings that enabled is is
+The config settings that enabled this during istio initialization is
 
 ```
    --set gateways.istio-ilbgateway.enabled=true
 ```
 
-and 
+and in this tutorial, applied as a `Service` with:
 
 ```
    kubectl apply -f istio-ilbgateway-service.yaml
 ```
 
-The latter specifies the exposed port forwarding to the service.  In our case, the exported port is `:443`:
+The yaml above specifies the exposed port forwarding to the service.  In our case, the exported port is `https-> :443`:
 
 ```yaml
 apiVersion: v1
@@ -761,7 +785,10 @@ spec:
       port: 443
 ```
 
-- Gateway:
+( the other entries exposing ports (`grpc-pilot-mtls`, `grpc-pilot`) are uses for multi-cluster and for this example, can be removed).
+
+We also defined an ILB `Gateway`  earlier in `all-istio.yaml` as:
+
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
@@ -789,7 +816,8 @@ spec:
       privateKey: /etc/istio/ilbgateway-certs/tls.key 
  ```
 
-- VirtualService:
+As was `VirtualService` that specifies the valid inbound gateways that can connect to our service.  This configuration was defined when we applied `istio-fev1-bev1.yaml`:
+
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
@@ -807,15 +835,57 @@ spec:
         host: myapp
         subset: v1
       weight: 100
-```     
+```
 
 > Note: the helm template does not allow to setting this automatically (as of 1/9)
 
+Also note th `gateways:` entry in the `VirtualService` includes `my-gateway-ilb` which is what defines `host:myapp, subset:v1` as a target for the ILB
 
-#### ILB Gateway
+```yaml
+  gateways:
+  - my-gateway
+  - my-gateway-ilb
+```
+
+As mentioned above, we had to _manually_ specify the `port` the ILB will listen on for traffic inbound to this service.  For this example, the ILB listens on `:443` so we setup the `Service` with that port
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: istio-ilbgateway
+  namespace: istio-system
+  annotations:
+    cloud.google.com/load-balancer-type: "internal"
+...
+spec:
+  type: LoadBalancer
+  selector:
+    app: istio-ilbgateway
+    istio: ilbgateway
+  ports:
+    -
+      name: https
+      port: 443
+```
+
+As well as defining the certficates mounted at `/etc/istio/ilbgateway-certs/` and specified this in the initial `all-istio.yaml` file:
+
+```yaml
+apiVersion: v1
+data:
+  tls.crt: LS0tLS1CR...
+  tls.key: LS0tLS1CR...
+kind: Secret
+metadata:
+  name: istio-ilbgateway-certs
+  namespace: istio-system
+type: kubernetes.io/tls
+```
 
 Now that the service is setup, acquire the ILB IP allocated
-```
+
+```bash
 export ILB_GATEWAY_IP=$(kubectl -n istio-system get service istio-ilbgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 echo $ILB_GATEWAY_IP
 ```
@@ -824,10 +894,8 @@ echo $ILB_GATEWAY_IP
 
 Then from a GCE VM in the same VPC, send some traffic over on the internal address
 
-```
+```bash
 you@gce-instance-1:~$ curl -vk https://10.128.0.23/
-*   Trying 10.128.0.23...
-
 
 < HTTP/2 200 
 < x-powered-by: Express
@@ -842,10 +910,13 @@ you@gce-instance-1:~$ curl -vk https://10.128.0.23/
 Hello from Express!
 ```
 
+- The Kiali console should show traffic from both gateways (if you recently sent traffic in externally and internally):
+
+![images/ilb_traffic.png](images/ilb_traffic.png)
 
 ### Egress Rules
 
-By default, istio blocks the cluster from making outbound requests.  TO achieve this, there are several options.
+By default, istio blocks the cluster from making outbound requests.  There are several options to allow your service to connect externally:
 
 * Egress Rules
 * Egress Gateway
@@ -929,13 +1000,13 @@ kubectl replace -f istio-fev1-bev1.yaml
 
 - Without egress rule, requests will fail:
 
-```
+```bash
 curl -k -s  https://$GATEWAY_IP/requestz | jq  '.'
 ```
 
 gives
 
-```
+```json
 [
   {
     "url": "https://www.google.com/robots.txt",
@@ -996,7 +1067,9 @@ gives
 
 ```bash
 curl -s -k https://$GATEWAY_IP/requestz | jq  '.'
+```
 
+```json
 [
   {
     "url": "https://www.google.com/robots.txt",
@@ -1057,8 +1130,9 @@ then lets apply the rule for the gateway:
 
 ```bash
 kubectl apply -f istio-egress-gateway.yaml
+```
 
-
+```json
 [
   {
     "url": "https://www.google.com/robots.txt",
@@ -1100,18 +1174,21 @@ kubectl apply -f istio-egress-gateway.yaml
     "statusCode": 404
   }
 ]
-
 ```
 
 ```
-kubectl logs $(kubectl get pod -l istio=egressgateway -n istio-system -o jsonpath='{.items[0].metadata.name}') egressgateway -n istio-system | tail
+kubectl logs $(kubectl get pod \
+  -l istio=egressgateway \
+  -n istio-system \
+  -o jsonpath='{.items[0].metadata.name}') egressgateway \
+  -n istio-system | tail
 ```
 
 Notice that only http request to yahoo succeeded on port `:443`.  Needless to say, this is pretty unusable; you have to originate ssl traffic from the host system itself or bypass the IP ranges rquests
 
 ### Bypass Envoy entirely
 
-You can also configure the `global.proxy.includeIPRanges=` variable to completely bypass the IP ranges for certain serivces.   This setting is described under [Calling external services directly](https://istio.io/docs/tasks/traffic-management/egress/#calling-external-services-directly) and details the ranges that _should_ get coverted by the proxy.  For GKE, you need to conver the subnets included and allocated: 
+You can also configure the `global.proxy.includeIPRanges=` variable to completely bypass the IP ranges for certain serivces.   This setting is described under [Calling external services directly](https://istio.io/docs/tasks/traffic-management/egress/#calling-external-services-directly) and details the ranges that _should_ get covered by the proxy.  For GKE, you need to cover the subnets included and allocated: 
 
 
 ### GCE MetadataServer
@@ -1242,6 +1319,42 @@ spec:
         end
 ```
 
+Note the response headers back to the caller (`foo2:bar2`) and the echo of the headers as received by the service _from_ envoy (`foo:bar`)
+
+```bash
+$ curl -vk  https://$GATEWAY_IP/headerz
+
+> GET /headerz HTTP/2
+> Host: 35.226.166.125
+> User-Agent: curl/7.60.0
+> Accept: */*
+
+< HTTP/2 200
+< x-powered-by: Express
+< content-type: application/json; charset=utf-8
+< content-length: 323
+< etag: W/"143-iBFyUExc9M0tCnht+lwhHw"
+< date: Fri, 18 Jan 2019 23:17:21 GMT
+< x-envoy-upstream-service-time: 10
+< foo2: bar2
+< server: envoy
+<
+{
+  "host": "35.226.166.125",
+  "user-agent": "curl/7.60.0",
+  "accept": "*/*",
+  "x-forwarded-for": "10.8.2.1",
+  "x-forwarded-proto": "https",
+  "x-request-id": "863c031c-1f79-4be2-ab70-9eb60238ddd1",
+  "x-b3-traceid": "be422263bd30e6b6",
+  "x-b3-spanid": "be422263bd30e6b6",
+  "x-b3-sampled": "0",
+  "content-length": "0",
+  "x-envoy-internal": "true",
+  "foo": "bar"
+}
+```
+
 ### Authorization
 
 The following steps is basically another walkthrough of the [Istio RBAC](https://istio.io/docs/tasks/security/role-based-access-control/).
@@ -1251,7 +1364,7 @@ The following steps is basically another walkthrough of the [Istio RBAC](https:/
 
 First lets verify we can access the frontend:
 
-```
+```bash
 curl -vk https://$GATEWAY_IP/version
 1
 ```
@@ -1263,7 +1376,7 @@ kubectl apply -f istio-rbac-config-ON.yaml
 ```
 
 then
-```
+```bash
 curl -vk https://$GATEWAY_IP/version
 
 < HTTP/2 403
@@ -1286,7 +1399,7 @@ kubectl apply -f istio-namespace-policy.yaml
 
 then
 
-```
+```bash
 curl -vk https://$GATEWAY_IP/version
 
 < HTTP/2 200
@@ -1303,7 +1416,7 @@ curl -vk https://$GATEWAY_IP/version
 
 but access to the backend gives:
 
-```
+```bash
 curl -vk https://$GATEWAY_IP/hostz
 
 < HTTP/2 200
@@ -1321,14 +1434,14 @@ curl -vk https://$GATEWAY_IP/hostz
 
 This is because the namespace rule we setup allows the `istio-sytem` _and_ `default` namespace access to any service that matches the label
 
-```
+```yaml
   labels:
     app: myapp
 ```
 
 but our backend has a label of
 
-```
+```yaml
   selector:
     app: be
 ```
@@ -1358,7 +1471,7 @@ kubectl apply -f istio-myapp-policy.yaml
 
 Wait maybe 30seconds and no you should again have access to the frontend.
 
-```
+```bash
 curl -v -k https://$GATEWAY_IP/version
 
 < HTTP/2 200
@@ -1374,7 +1487,7 @@ curl -v -k https://$GATEWAY_IP/version
 
 but not the backend
 
-```
+```bash
  curl -v -k https://$GATEWAY_IP/hostz
 
 < HTTP/2 200
@@ -1413,6 +1526,8 @@ spec:
       serviceAccountName: myapp-sa
 ```
 
+So to allow `myapp-sa` access to `be.default.svc.cluster.local`, we need to apply a Role/RoleBinding as shown in`istio-myapp-be-policy.yaml`:
+
 ```yaml
 apiVersion: "rbac.istio.io/v1alpha1"
 kind: ServiceRole
@@ -1445,8 +1560,8 @@ kubectl apply -f istio-myapp-be-policy.yaml
 
 Now you should be able to access the backend fine:
 
-```
-curl -v -k https://35.238.104.13/hostz
+```bash
+curl -v -k https://35.226.166.125/hostz
 < HTTP/2 200
 < x-powered-by: Express
 < content-type: application/json; charset=utf-8
