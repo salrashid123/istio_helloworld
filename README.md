@@ -837,9 +837,7 @@ spec:
       weight: 100
 ```
 
-> Note: the helm template does not allow to setting this automatically (as of 1/9)
-
-Also note th `gateways:` entry in the `VirtualService` includes `my-gateway-ilb` which is what defines `host:myapp, subset:v1` as a target for the ILB
+Note the `gateways:` entry in the `VirtualService` includes `my-gateway-ilb` which is what defines `host:myapp, subset:v1` as a target for the ILB
 
 ```yaml
   gateways:
@@ -869,7 +867,7 @@ spec:
       port: 443
 ```
 
-As well as defining the certficates mounted at `/etc/istio/ilbgateway-certs/` and specified this in the initial `all-istio.yaml` file:
+Finally, the certficates `Secret` mounted at `/etc/istio/ilbgateway-certs/` was specified this in the initial `all-istio.yaml` file:
 
 ```yaml
 apiVersion: v1
