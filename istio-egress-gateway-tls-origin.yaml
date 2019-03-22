@@ -1,0 +1,46 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: se-ww-yahoo-com
+spec:
+  hosts:
+  - www.yahoo.com
+  ports:
+  - number: 80
+    name: http-port
+    protocol: HTTP
+  - number: 443
+    name: http-port-for-tls-origination
+    protocol: HTTP
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: vs-www-yahoo-com
+spec:
+  hosts:
+  - www.yahoo.com
+  http:
+  - match:
+    - port: 80
+    route:
+    - destination:
+        host: www.yahoo.com
+        port:
+          number: 443
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: dr-www-yahoo-com
+spec:
+  host: www.yahoo.com
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    portLevelSettings:
+    - port:
+        number: 443
+      tls:
+        mode: SIMPLE

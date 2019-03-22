@@ -6,12 +6,9 @@ spec:
   hosts:
   - www.yahoo.com
   ports:
-  - number: 80
-    name: http-port
-    protocol: HTTP
   - number: 443
-    name: https
-    protocol: HTTPS
+    name: tls
+    protocol: TLS
   resolution: DNS
 ---
 apiVersion: networking.istio.io/v1alpha3
@@ -24,8 +21,8 @@ spec:
   servers:
   - port:
       number: 443
-      name: https
-      protocol: HTTPS
+      name: tls-yahoo
+      protocol: TLS
     hosts:
     - www.yahoo.com
     tls:
@@ -62,11 +59,13 @@ spec:
   gateways:
   - istio-egressgateway
   - mesh
-  http:
+  tls:
   - match:
     - gateways:
       - mesh
-      port: 80
+      port: 443
+      sni_hosts:
+      - www.yahoo.com
     route:
     - destination:
         host: istio-egressgateway.istio-system.svc.cluster.local
@@ -74,6 +73,7 @@ spec:
         port:
           number: 443
       weight: 100
+  tcp:
   - match:
     - gateways:
       - istio-egressgateway
@@ -84,18 +84,3 @@ spec:
         port:
           number: 443
       weight: 100
----
-apiVersion: networking.istio.io/v1alpha3
-kind: DestinationRule
-metadata:
-  name: originate-tls-for-www-yahoo-com
-spec:
-  host: www.yahoo.com
-  trafficPolicy:
-    loadBalancer:
-      simple: ROUND_ROBIN
-    portLevelSettings:
-    - port:
-        number: 443
-      tls:
-        mode: SIMPLE

@@ -48,7 +48,7 @@ app.get('/hostz', (request, response) => {
       if (err) {
         response.send(err);
       } else if (addresses.length >= 1) {
-        logger.info('addresses: ' + JSON.stringify(addresses));        
+        logger.info('addresses: ' + JSON.stringify(addresses));
         var host = addresses[0].name;
         var port = addresses[0].port;
         logger.info(host + " --> " + port);
@@ -57,11 +57,11 @@ app.get('/hostz', (request, response) => {
         var urls = [
                     'http://' + host + ':' + port + '/backend',
         ]
-    
+
         urls.forEach(function(element){
           resp_promises.push( getURL(element) )
         });
-    
+
         Promise.all(resp_promises).then(function(value) {
           response.send(value);
         }, function(value) {
@@ -98,12 +98,13 @@ app.get('/requestz', (request, response) => {
     var resp_promises = []
     var urls = [
                 'https://www.google.com/robots.txt',
-                'http://www.google.com:443/robots.txt',                
+                'http://www.google.com:443/robots.txt',
                 'http://www.bbc.com/robots.txt',
                 'https://www.cornell.edu/robots.txt',
                 'https://www.uwo.ca/robots.txt',
-                'https://www.yahoo.com/robots.txt',             
-                'http://www.yahoo.com:443/robots.txt'    
+                'http://www.yahoo.com/robots.txt',
+                'https://www.yahoo.com/robots.txt',
+                'http://www.yahoo.com:443/robots.txt'
     ]
 
     urls.forEach(function(element){
@@ -133,6 +134,22 @@ app.get('/metadata', (request, response) => {
 
   urls.forEach(function(element){
     resp_promises.push( getURL(element, {'Metadata-Flavor':'Google'}) )
+  });
+
+  Promise.all(resp_promises).then(function(value) {
+    response.send(value);
+  }, function(value) {
+    response.send(value);
+  });
+})
+
+app.get('/remote', (request, response) => {
+  var resp_promises = []
+  var urls = [
+              'http://be.ns2.global:8080/backend'
+  ]
+  urls.forEach(function(element){
+    resp_promises.push( getURL(element) )
   });
 
   Promise.all(resp_promises).then(function(value) {
