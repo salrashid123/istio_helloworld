@@ -1328,7 +1328,7 @@ Error from server: error when creating "istio-egress-rule-metadata.yaml": admiss
 
 Is that a problem?  Maybe not...Most of the [google-auth libraries](https://github.com/googleapis/google-auth-library-python/blob/master/google/auth/compute_engine/_metadata.py#L35) uses the fully qualified hostname or IP address (it used to use just `metadata` so that wou've been a problem)
 
-### LUA HTTPFilters
+### LUA HTTPFilter
 
 The following will setup a simple Request/Response LUA `EnvoyFilter` for the frontent `myapp`:
 
@@ -1376,7 +1376,7 @@ $ curl -vk  https://$GATEWAY_IP/headerz
 < HTTP/2 200 
 < x-powered-by: Express
 < content-type: application/json; charset=utf-8
-< content-length: 626
+< contLUAent-length: 626
 < etag: W/"272-vkps3sJOT8NW67CxK6gzGw"
 < date: Fri, 22 Mar 2019 00:40:36 GMT
 < x-envoy-upstream-service-time: 7
