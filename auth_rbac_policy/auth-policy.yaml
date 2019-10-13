@@ -1,0 +1,55 @@
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: igpolicy
+  namespace: istio-system
+spec:
+  targets:
+  - name: istio-ingressgateway
+    ports:
+    - number: 80
+    - number: 443
+  origins:
+  - jwt:
+      issuer: "issuer@project.iam.gserviceaccount.com"
+      audiences:
+      - "https://foo.bar"
+      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
+  principalBinding: USE_ORIGIN
+---
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: svc1-policy
+spec:
+  targets:
+  - name: svc1
+  peers:
+  - mtls: {}  
+  origins:
+  - jwt:
+      issuer: "issuer@project.iam.gserviceaccount.com"
+      audiences:
+      - "https://foo.bar"
+      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com"         
+  principalBinding: USE_ORIGIN
+---
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: svc2-policy
+spec:
+  targets:
+  - name: svc2
+  peers:
+  - mtls: {}  
+  origins:
+  - jwt:
+      issuer: "issuer@project.iam.gserviceaccount.com"
+      audiences:
+      - "https://foo.bar"
+      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
+      triggerRules:
+      - excludedPaths:
+        - exact: /varz
+  principalBinding: USE_ORIGIN

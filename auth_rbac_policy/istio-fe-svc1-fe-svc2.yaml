@@ -1,0 +1,53 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: svc1-virtualservice
+spec:
+  hosts:
+  - "svc1.example.com"
+  gateways:
+  - my-gateway
+  - my-gateway-ilb
+  http:      
+  - route:
+    - destination:
+        host: svc1      
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: svc1-destination
+spec:
+  host: svc1
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL  
+    loadBalancer:
+      simple: ROUND_ROBIN      
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: svc2-virtualservice
+spec:
+  hosts:
+  - "svc2.example.com"
+  gateways:
+  - my-gateway
+  - my-gateway-ilb
+  http:      
+  - route:
+    - destination:
+        host: svc2    
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: svc2-destination
+spec:
+  host: svc2
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL  
+    loadBalancer:
+      simple: ROUND_ROBIN   

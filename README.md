@@ -11,6 +11,7 @@ i understand something is to rewrite sections and only those sections from the g
 
 ## Istio version used
 
+* 10/12/19: Istio 1.3.2
 * 03/10/19:  Istio 1.1.0
 * 01/09/19:  Istio 1.0.5
 * [Prior Istio Versions](https://github.com/salrashid123/istio_helloworld/tags)
@@ -27,6 +28,8 @@ i understand something is to rewrite sections and only those sections from the g
 - [Egress Gateway](#egress-gateway)
 - [LUA HttpFilter](#lua-httpfilter)
 - [Authorization](#autorization)
+- [JWT Authentication an Authorization](#jwt-auth-autorization)
+- [Service to Service RBAC and Authentication Policy](service-to-service-rbac-and-authentication-policy)
 - [Internal LoadBalancer (GCP)](#internal-loadbalancer)
 - [Mixer Out of Process Authorization Adapter](https://github.com/salrashid123/istio_custom_auth_adapter)
 - [Access GCE MetadataServer](#access-GCE-metadataServer)
@@ -86,7 +89,7 @@ kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-ad
 
 kubectl create ns istio-system
 
-export ISTIO_VERSION=1.1.0
+export ISTIO_VERSION=1.3.2
 wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz
 tar xvzf istio-$ISTIO_VERSION-linux.tar.gz
 
@@ -1656,6 +1659,392 @@ curl -v -k https://$GATEWAY_IP/hostz
   }
 ]
 ```
+
+Just for refernce, the kubernetes service account JWT token can be found on the `myapp` pod mounted at `/var/run/secrets/kubernetes.io/serviceaccount/token`
+
+The format of the JWT token is:
+```json
+{
+  "iss": "kubernetes/serviceaccount",
+  "kubernetes.io/serviceaccount/namespace": "default",
+  "kubernetes.io/serviceaccount/secret.name": "myapp1-sa-token-jrh85",
+  "kubernetes.io/serviceaccount/service-account.name": "myapp-sa",
+  "kubernetes.io/serviceaccount/service-account.uid": "342440de-ec5f-11e9-a9d1-42010a80028b",
+  "sub": "system:serviceaccount:default:myapp-sa"
+}
+```
+
+#### JWT Authentication and RBAC Authorization
+
+In this section, we will extend the sample to implement JWT authentication from the client and also use claims within the JWT payload for an enhanced [Service Specific Policy](https://istio.io/docs/tasks/security/authn-policy/#service-specific-policy).
+
+Specifically, this section will add perimeter [Authentication](https://istio.io/docs/concepts/security/#authentication) that validates a JWT token at ingress gateway and then RBAC policies at the Service level will further restrict requests.
+
+There are two users: Alice, Bob and two services `svc1`, `svc2`. Alice should be allowed to access _only_ `svc1`, Bob should only access `svc2`.  Both users must present a JWT issued by the same issuer.  In this case, a Self Signed JWT certificate issued by Google.  You can also use Fireabase/Cloud Identity or any other JWT that provides a JWK URL)
+
+This section involves several steps...first delete any configurations that may still be active.  We need to do this because we will create two _new_ services on the frontend `svc1`, `svc2`
+
+```bash
+kubectl delete -f istio-rbac-config-ON.yaml 
+kubectl delete -f istio-namespace-policy.yaml 
+kubectl delete -f istio-myapp-policy.yaml 
+kubectl delete -f istio-myapp-be-policy.yaml 
+kubectl delete -f istio-fev1-httpfilter.yaml 
+kubectl delete -f istio-fev1-bev1v2.yaml	
+kubectl delete -f all-istio.yaml
+```
+
+You can verify the configuration that are active by running:
+```
+$ kubectl get svc,deployments,po,serviceaccounts,serviceentry,VirtualService,DestinationRule,ServiceRole,ServiceRoleBinding,RbacConfig,Secret,Policy,Gateway
+```
+
+Since the authentication mode described here involes a JWT, we will setup a Google Cloud Service Account the JWT provider.  You are ofcourse free to use any identity provide or even Firebase/[Cloud Identity](https://cloud.google.com/identity/docs/how-to/setup) 
+
+First redeploy an application that has two frontend services `svc1`, `svc2` accessible using the `Host:` headervalues (`svc1.domain.com` and `svc2.domain.com`)
+
+```
+kubectl apply -f auth-deployment.yaml -f istio-fe-svc1-fe-svc2.yaml
+```
+
+Check the application still works (it should; we didn't apply policies yet yet)
+
+```bash
+ curl -k -H "Host: svc1.example.com" -w "\n" https://$GATEWAY_IP/version
+```
+
+
+Apply the authentication policy that checks for a JWT signed by the service account and one with an audience match
+
+Edit `auth-policy.yaml` file and replace the values where the service account email is specified
+
+```yaml
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: igpolicy
+  namespace: istio-system
+spec:
+  targets:
+  - name: istio-ingressgateway
+    ports:
+    - number: 80
+    - number: 443
+  origins:
+  - jwt:
+      issuer: "issuer@project.iam.gserviceaccount.com"
+      audiences:
+      - "https://foo.bar"
+      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
+  principalBinding: USE_ORIGIN
+---
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: svc1-policy
+spec:
+  targets:
+  - name: svc1
+  peers:
+  - mtls: {}  
+  origins:
+  - jwt:
+      issuer: "issuer@project.iam.gserviceaccount.com"
+      audiences:
+      - "https://foo.bar"
+      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
+  principalBinding: USE_ORIGIN
+---
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: svc2-policy
+spec:
+  targets:
+  - name: svc2
+  peers:
+  - mtls: {}  
+  origins:
+  - jwt:
+      issuer: "issuer@project.iam.gserviceaccount.com"
+      audiences:
+      - "https://foo.bar"
+      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
+  principalBinding: USE_ORIGIN
+```
+
+> Note, we're setting up ingress Authentication policies and for each service, allow it to use peer `- mtls: {}` to surface the inbound JWT.  Ref:  [End-user authentication with mutual TLS](https://istio.io/docs/tasks/security/authn-policy/#end-user-authentication-with-mutual-tls): "you still need to add the mtls stanza to the authentication policy as the service-specific policy will override the mesh-wide (or namespace-wide) policy completely."
+
+
+The policy above looks for a specific issuer and audience value.  THe `jwksUri` field maps to the public certificate set for our service account.  THe well known url for the service account for Google Cloud is:
+First lets acquire JWT tokens 
+
+`https://www.googleapis.com/service_accounts/v1/jwk/<serviceAccountEmail>`
+
+
+After you apply the policy
+
+```
+kubectl apply -f auth-policy.yaml
+```
+
+ you should see an error:
+
+`Origin authentication failed.`
+
+
+THis indicates we did not send in the required header.   In the next setp, we will use a small *sample* client library to acquire a JWT.  You can also use google OIDC tokens or any other provider (Firebase, Auth0)
+
+To bootstrap the sample client, go to the Google Cloud Console and download a service account JSON file as described [here](https://cloud.google.com/iam/docs/creating-managing-service-account-keys).  Copy the service account to the `auth_rbac_policy/jwt_cli` folder and save the JSON file as `svc_account.json`.
+
+Run
+```
+cd auth_rbac_policy/jwt_cli/
+pip install -r requirements.txt
+python main.py
+```
+
+The command line utility will generate two tokens with different specifications.  For Alice, 
+.
+
+```json
+{
+  "iss": "source-service-account@fabled-ray-104117.iam.gserviceaccount.com",
+  "iat": 1570897661,
+  "sub": "alice",
+  "exp": 1570901261,
+  "aud": "https://foo.bar"
+}
+```
+
+And Bob
+```json
+{
+  "groups": [
+    "group1",
+    "group2"
+  ],
+  "sub": "bob",
+  "exp": 1570901261,
+  "iss": "source-service-account@fabled-ray-104117.iam.gserviceaccount.com",
+  "iat": 1570897661,
+  "aud": "https://foo.bar"
+}
+```
+
+Export these values as environment variables
+```
+export TOKEN_ALICE=<tokenvaluealice>
+export TOKEN_BOB=<tokenvaluebob>
+```
+
+Now inject the token into the `Authorization: Bearer` header and try to access the protected service:
+
+```bash
+for i in {1..1000}; do curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version; sleep 1; done
+```
+
+The request should now pass validation and you're in.  What we just did is have one policy that globally to the ingress-gateway.  You are free to apply selective per-service policies as shown in `auth-policy.yaml` file commented out.
+
+##### RBAC Authorization using JWT
+
+At this point both Alice and Bob can access `svc1` and `svc2` because of the authentication policy is wide (and its authentication, not authorization)
+
+```
+ curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
+ curl -k -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
+```
+
+This is not what we want: we want Alice to only access `svc1` and Bob to only access `svc2` (Bob has further restrictions on the claim which we will get to later)
+
+First enable RBAC
+```
+kubectl apply -f istio-rbac-config-ON.yaml
+```
+
+Wait maybe 30seconds (it takes time for the policy to propagte)
+
+```
+for i in {1..1000}; do curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version; sleep 1; done
+```
+and eventually you should see an RBAC error `RBAC: access denied` (not an `Origin Authentication failed` message; we arleady got past the gateway)
+
+We need to apply a policy that checks the JWT Payload for an indication who the user is.  We will use the `sub` field to do that within the JWT.
+
+>> **WARNING**  the sample code to generate the jwt at the client side uses a service account JWT where the client itself is minting the JWT specifications (meaning it can setup any claimsets it wants, any `sub` field.). In reality, you woouild want to use some other mechanism to acquire a token (Auth0, Firebase Custom Claims, etc).
+
+Anyway, lets setup a serviceRole and binding that checks for a specific claim value.  In our case, since we are atleast looking for the `sub` filed, we will have a rule that looks for `alice` while accessing `svc1` and `bob` for `svc2`.
+
+```
+kubectl apply -f service-roles.yaml   
+```
+
+Once you set that, only Alice should be able to access `svc1` and only Bob access `svc2`
+
+```bash
+$ curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
+200
+
+$ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_ALICE"   -w "%{http_code}\n" https://$GATEWAY_IP/version
+403
+RBAC: access denied
+
+$ curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_BOB"   -w "%{http_code}\n" https://$GATEWAY_IP/version
+403
+RBAC: access denied
+
+$ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
+200
+```
+
+#### Service to Service RBAC and Authentication Policy
+
+In this section, we extend the working set to allow Alice and Bob to access frontend services and ALSO setup an RBAC policy that allows `svcA` to access `svcB`.
+
+Note, we already did the last part (`svcA`->`svcB` _transport authentication_) in a previous section titled "ServiceLevel Access Control".  The difference between that and the current section is that the the AUthentiation Policy we just setup earlier exclusively looks for the end-user JWT token instead of implicit Transport Authenciation and identity based on the kubernetes service account associated with a Pod.  In other words this section will try to use both [Transport and End-User Authentication](https://istio.io/docs/concepts/security/#authentication) together with RBAC.
+
+
+To startoff, view the Authentication Policy for `svc2` that should be left off from the previous section:
+
+```yaml
+$ kubectl get Policy,ServiceRole,ServiceRoleBinding,RbacConfig
+
+$ kubectl describe policy.authentication.istio.io/svc2-policy
+```
+
+These policies allows JWT authentication token from external sources but what if we're on a `svc1` pod and attempt to access `svc2`?  \
+
+To check this, first create a shell on `svc1`:
+
+```bash
+$ kubectl get po
+NAME                    READY   STATUS    RESTARTS   AGE
+svc1-6d8b6ff4d7-l5st9   2/2     Running   0          99m
+svc2-647ff496bf-dv4ps   2/2     Running   0          99m
+
+# exec to a pod in svc1:
+kubectl exec -ti svc1-6d8b6ff4d7-l5st9 -c myapp-container -- /bin/bash
+```
+
+Withink the shell, attempt to access `svc2` even with an explicit service accoun token
+
+```
+root@svc1-6d8b6ff4d7-l5st9:/# curl -v http://svc2.default.svc.cluster.local:8080/version
+
+root@svc1-6d8b6ff4d7-l5st9:/# curl -v -H "Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`" http://svc2.default.svc.cluster.local:8080/version
+
+Origin authentication failed.
+```
+
+Note, though we already setup `svc1`'s service account in a role to access `svc2`, the k8s service account's identity isn't getting used or provided.  This means our Authentication Policy for `svc2` is getting applied prior to Transport Authentication (eg the error is _Origin authentication failed._)
+
+At the moment, i do not know how to use **BOTH** Transport and End-User authentication for the _same_ service...
+
+The workaround i've got at the moment is a hack...basically omit the endpoint from JWT Authentication that should get called by the internal service.  In our example a call to (`/varz`) is excluded from Authentication Policy:
+
+```yaml
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: svc2-policy
+spec:
+  targets:
+  - name: svc2
+  peers:
+  - mtls: {}  
+  origins:
+  - jwt:
+      issuer: "issuer@project.iam.gserviceaccount.com"
+      audiences:
+      - "https://foo.bar"
+      triggerRules:                <<<<<<<<<<<<<<<<<<<
+      - excludedPaths:  
+        - exact: /varz             <<<<<<<<<<<<<<<<<<
+      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com"  
+  principalBinding: USE_ORIGIN
+```
+
+The policy should already be in effect (you can verify by running `kubectl describe policy/svc2-policy`).  Lets check if we can access `/varz` endpoint externally as both Alice and Bob
+
+```bash
+# /version
+## Bob
+curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
+200
+
+# /varz
+## Bob
+curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_BOB"  -w "%{http_code}\n" https://$GATEWAY_IP/varz
+403
+RBAC: access denied
+```
+
+>> We are seeing `RBAC: access denied` denied because we have RBAC enabled and the JWT-based end-user token is not propagated as an identity.
+
+Ok, lets try to access the `svc2` from within `svc1`.  To do this, exec to the pod as showsn above, then attempt to get svc2'1 `/version` and `/varz` endpoints
+
+```
+root@svc1-6d8b6ff4d7-l5st9:/# curl -s -o /dev/null -w "%{http_code}\n"  http://svc2.default.svc.cluster.local:8080/version
+Origin authentication failed
+401
+
+root@svc1-6d8b6ff4d7-l5st9:/# curl -s -o /dev/null -w "%{http_code}\n"  http://svc2.default.svc.cluster.local:8080/varz
+200
+```
+
+Ok, so the `/varz` endpoint worked because we have a `ServieRoleBinding` enabled that allows it within the `service-roles.yaml` file:
+
+```yaml
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-svc1-viewer-sa
+  namespace: default
+spec:
+  subjects:
+  - user: cluster.local/ns/default/sa/svc1-sa
+  roleRef:
+    kind: ServiceRole
+    name: svc2-viewer
+```  
+
+To verify this is the case, delete it:
+
+```bash
+kubectl delete  ServiceRoleBinding/bind-svc1-viewer-sa
+```
+
+...after maybe 30 seconds, try to access `svc2` from `svc1`:
+
+```
+root@svc1-6d8b6ff4d7-l5st9:/# curl -s  -w "%{http_code}\n"  http://svc2.default.svc.cluster.local:8080/varz
+403
+RBAC: access denied
+```
+
+(to reeapply the policy specifically..)
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-svc1-viewer-sa
+  namespace: default
+spec:
+  subjects:
+  - user: cluster.local/ns/default/sa/svc1-sa
+  roleRef:
+    kind: ServiceRole
+    name: svc2-viewer
+EOF
+```
+
+In summary, 
+* user Alice can access `svc1`
+* Bob can access `svc2`
+* Bob cannot access `svc2`'s `/varz` endopint
+* `svc1` can only access `svc2`'s `/varz` endopint
+
 ## Cleanup
 
 The easiest way to clean up what you did here is to delete the GKE cluster!

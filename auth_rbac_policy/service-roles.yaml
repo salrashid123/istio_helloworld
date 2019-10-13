@@ -1,0 +1,63 @@
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: svc1-viewer
+  namespace: default
+spec:
+  rules:
+  - services: ["svc1.default.svc.cluster.local"]
+    methods: ["GET"]
+#    constraints:
+#    - key: request.headers[customheader]
+#      values: ["headervalue"]     
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-svc1-viewer
+  namespace: default
+spec:
+  subjects:
+  - properties:
+      request.auth.claims[sub]: "alice"
+  roleRef:
+    kind: ServiceRole
+    name: svc1-viewer
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: svc2-viewer
+  namespace: default
+spec:
+  rules:
+  - services: ["svc2.default.svc.cluster.local"]
+    methods: ["GET"]    
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-svc2-viewer
+  namespace: default
+spec:
+  subjects:
+  #- user: cluster.local/ns/default/sa/svc1-sa    
+  - properties:
+      request.auth.claims[sub]: "bob"
+      request.auth.claims[groups]: "group1"
+      request.auth.claims[groups]: "group2"
+  roleRef:
+    kind: ServiceRole
+    name: svc2-viewer
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-svc1-viewer-sa
+  namespace: default
+spec:
+  subjects:
+  - user: cluster.local/ns/default/sa/svc1-sa
+  roleRef:
+    kind: ServiceRole
+    name: svc2-viewer

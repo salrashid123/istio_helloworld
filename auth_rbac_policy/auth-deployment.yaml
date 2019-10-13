@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc1
+  labels:
+    app: svc1
+spec:
+  ports:
+  - port: 8080
+    name: http
+  selector:
+    app: svc1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc2
+  labels:
+    app: svc2
+spec:
+  ports:
+  - port: 8080
+    name: http
+  selector:
+    app: svc2
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: svc1-sa
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: svc2-sa
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: svc1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: svc1
+    spec:
+      serviceAccountName: svc1-sa
+      containers:
+      - name: myapp-container
+        image: salrashid123/istioinit:1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080            
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: svc2
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: svc2
+    spec:
+      serviceAccountName: svc2-sa    
+      containers:
+      - name: myapp-container
+        image: salrashid123/istioinit:2
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
