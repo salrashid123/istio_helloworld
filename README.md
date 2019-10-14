@@ -1846,10 +1846,50 @@ for i in {1..1000}; do curl -k -H "Host: svc1.example.com" -H "Authorization: Be
 
 The request should now pass validation and you're in.  What we just did is have one policy that globally to the ingress-gateway.  You are free to apply selective per-service policies as shown in `auth-policy.yaml` file commented out.
 
+Another configuration setting you would want to do but not demonstrated in this tutorial is to specify the `aud:` field that is service specific:
+
+```yaml
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: igpolicy
+  namespace: istio-system
+spec:
+..
+  origins:
+  - jwt:
+      audiences:
+      - "https://foo.bar"
+      - "https://svc1" <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+      - "https://svc2" <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<            
+---
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: svc1-policy
+...
+  origins:
+  - jwt:
+      issuer: "issuer@project.iam.gserviceaccount.com"
+      audiences:
+      - "https://svc1" <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<N
+---
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: svc2-policy
+...
+  origins:
+  - jwt:
+      audiences:
+      - "https://svc2" <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+```
+
+Anyway, these are authentication/origin controls.  The next sectio will cover RBAC + JWT Auth:
+
 ##### RBAC Authorization using JWT
 
-At this point both Alice and Bob can access `svc1` and `svc2` because of the authentication policy is wide (and its authentication, not authorization)
-
+At this point both Alice and Bob can access `svc1` and `svc2` because of the authentication policy is wide (and its authentication, not authorization).  
 ```
  curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
  curl -k -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
@@ -1857,7 +1897,15 @@ At this point both Alice and Bob can access `svc1` and `svc2` because of the aut
 
 This is not what we want: we want Alice to only access `svc1` and Bob to only access `svc2` (Bob has further restrictions on the claim which we will get to later)
 
-First enable RBAC
+If you use an _Authentiation Policy_ for that, one way would be to specify audience validation:
+
+
+
+The other way is to push the decision further down and use RBAC since all the bit above would do is origin authentication (not authorization).  The bit above also hinges on the fact that the Alice can't just create a jwt with the `https://svc2` audience unilaterally.
+
+
+The other approach is to add on RBAC instead.  First enable it
+
 ```
 kubectl apply -f istio-rbac-config-ON.yaml
 ```
@@ -1940,7 +1988,14 @@ Note, though we already setup `svc1`'s service account in a role to access `svc2
 
 At the moment, i do not know how to use **BOTH** Transport and End-User authentication for the _same_ service...
 
-The workaround i've got at the moment is a hack...basically omit the endpoint from JWT Authentication that should get called by the internal service.  In our example a call to (`/varz`) is excluded from Authentication Policy:
+So far, there is one workaround i can think of:
+
+* Allow the Authentication step to be optional and use RBAC to deny.
+
+You can do this in two ways: set 1) [originIsOptional: true](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Policy) or 2) set a an exclusion path for the `Policy`.
+
+> originIsOptional: Set this flag to true to accept request (for origin authentication perspective), even when none of the origin authentication methods defined above satisfied. Typically, this is used to delay the rejection decision to next layer (e.g authorization).
+
 
 ```yaml
 apiVersion: authentication.istio.io/v1alpha1
@@ -1951,20 +2006,21 @@ spec:
   targets:
   - name: svc2
   peers:
-  - mtls: {}  
+  - mtls: {}
+  originIsOptional: true         <<<<<<<<<<<<<<  1. make optional
   origins:
   - jwt:
       issuer: "issuer@project.iam.gserviceaccount.com"
       audiences:
       - "https://foo.bar"
-      triggerRules:                <<<<<<<<<<<<<<<<<<<
+      triggerRules:
       - excludedPaths:  
-        - exact: /varz             <<<<<<<<<<<<<<<<<<
+        - exact: /varz             <<<<<<<<<<<<<<<<<< 2. BYPASS Policy per endpoint
       jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com"  
   principalBinding: USE_ORIGIN
 ```
 
-The policy should already be in effect (you can verify by running `kubectl describe policy/svc2-policy`).  Lets check if we can access `/varz` endpoint externally as both Alice and Bob
+The exclusion ploicy (2) should already be in effect (you can verify by running `kubectl describe policy/svc2-policy`).  Lets check if we can access `/version` endpoint externally as both Alice and Bob
 
 ```bash
 # /version
@@ -1979,7 +2035,7 @@ curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_BOB"  -w "
 RBAC: access denied
 ```
 
->> We are seeing `RBAC: access denied` denied because we have RBAC enabled and the JWT-based end-user token is not propagated as an identity.
+>> We are seeing `RBAC: access denied` denied because we have RBAC enabled and the JWT-based end-user token is not propagated as any identity (`principalBinding: USE_ORIGIN`)
 
 Ok, lets try to access the `svc2` from within `svc1`.  To do this, exec to the pod as showsn above, then attempt to get svc2'1 `/version` and `/varz` endpoints
 

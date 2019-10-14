@@ -42,7 +42,8 @@ spec:
   targets:
   - name: svc2
   peers:
-  - mtls: {}  
+  - mtls: {}
+  # originIsOptional: true      
   origins:
   - jwt:
       issuer: "issuer@project.iam.gserviceaccount.com"
