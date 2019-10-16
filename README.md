@@ -2066,6 +2066,11 @@ Note, though we already setup `svc1`'s service account in a role to access `svc2
 
 At the moment, i do not know how to use **BOTH** Transport and End-User authentication for the _same_ service...
 
+The [Principal Binding Section](https://istio.io/docs/concepts/security/#principal-binding) would be something i could look at later:
+
+>> The principal binding key-value pair defines the principal authentication for a policy. By default, Istio uses the authentication configured in the peers: section. If no authentication is configured in the peers: section, Istio leaves the authentication unset. Policy writers can overwrite this behavior with the USE_ORIGIN value. This value configures Istio to use the origin’s authentication as the principal authentication instead. In future, we will support conditional binding, for example: USE_PEER when peer is X, otherwise USE_ORIGIN.
+
+
 So far, there is one workaround i can think of:
 
 * Allow the Authentication step to be optional and use RBAC to deny.
