@@ -65,12 +65,16 @@ def _urlsafe_b64decode(b64string):
 if __name__ == '__main__':
 
     cred = service_account.Credentials.from_service_account_file('service_account.json')
-    fbtok = getToken("alice", "https://foo.bar", {}) 
+    fbtok = getToken("alice", "https://svc1.example.com", {}) 
     print "TOKEN_ALICE: " + fbtok
 
 
-    fbtok = getToken("bob", "https://foo.bar", {'groups': ['group1','group2']}) 
+    fbtok = getToken("bob", "https://svc2.example.com", {'groups': ['group1','group2']}) 
     print "TOKEN_BOB: " + fbtok
+
+    fbtok = getToken("bob", "https://svc2.example.com", {}) 
+    print "TOKEN_BOB NO GROUPS: " + fbtok
+     
  
     #verifyToken(fbtok, "https://foo.bar")
 

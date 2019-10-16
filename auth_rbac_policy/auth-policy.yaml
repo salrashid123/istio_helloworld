@@ -14,6 +14,8 @@ spec:
       issuer: "issuer@project.iam.gserviceaccount.com"
       audiences:
       - "https://foo.bar"
+      - "https://svc1.example.com"
+      - "https://svc2.example.com"
       jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
   principalBinding: USE_ORIGIN
 ---
@@ -30,7 +32,7 @@ spec:
   - jwt:
       issuer: "issuer@project.iam.gserviceaccount.com"
       audiences:
-      - "https://foo.bar"
+      - "https://svc1.example.com"
       jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com"         
   principalBinding: USE_ORIGIN
 ---
@@ -48,7 +50,7 @@ spec:
   - jwt:
       issuer: "issuer@project.iam.gserviceaccount.com"
       audiences:
-      - "https://foo.bar"
+      - "https://svc2.example.com"
       jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
       triggerRules:
       - excludedPaths:

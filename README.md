@@ -105,7 +105,6 @@ helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio-init --name ist
 
 helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio --name istio --namespace istio-system  \
    --set prometheus.enabled=true \
-   --set servicegraph.enabled=true \
    --set grafana.enabled=true \
    --set tracing.enabled=true \
    --set sidecarInjectorWebhook.enabled=true \
@@ -1692,6 +1691,11 @@ kubectl delete -f istio-myapp-be-policy.yaml
 kubectl delete -f istio-fev1-httpfilter.yaml 
 kubectl delete -f istio-fev1-bev1v2.yaml	
 kubectl delete -f all-istio.yaml
+
+
+kubectl apply -f istio-lb-certs.yaml
+kubectl apply -f istio-ingress-gateway.yaml
+kubectl apply -f istio-ingress-ilbgateway.yaml 
 ```
 
 You can verify the configuration that are active by running:
@@ -1714,7 +1718,7 @@ Check the application still works (it should; we didn't apply policies yet yet)
 ```
 
 
-Apply the authentication policy that checks for a JWT signed by the service account and one with an audience match
+Apply the authentication policy that checks for a JWT signed by the service account and audience match on the service.  THe following policy will allow all three audience values through the ingress gateway but only those JWTs that match the audience for the service through at the service level:
 
 Edit `auth-policy.yaml` file and replace the values where the service account email is specified
 
@@ -1735,6 +1739,8 @@ spec:
       issuer: "issuer@project.iam.gserviceaccount.com"
       audiences:
       - "https://foo.bar"
+      - "https://svc1.example.com"
+      - "https://svc2.example.com"
       jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
   principalBinding: USE_ORIGIN
 ---
@@ -1751,7 +1757,7 @@ spec:
   - jwt:
       issuer: "issuer@project.iam.gserviceaccount.com"
       audiences:
-      - "https://foo.bar"
+      - "https://svc1.example.com"
       jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
   principalBinding: USE_ORIGIN
 ---
@@ -1768,7 +1774,7 @@ spec:
   - jwt:
       issuer: "issuer@project.iam.gserviceaccount.com"
       audiences:
-      - "https://foo.bar"
+      - "https://svc2.example.com"
       jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
   principalBinding: USE_ORIGIN
 ```
@@ -1810,10 +1816,10 @@ The command line utility will generate two tokens with different specifications.
 ```json
 {
   "iss": "source-service-account@fabled-ray-104117.iam.gserviceaccount.com",
-  "iat": 1570897661,
+  "iat": 1571185182,
   "sub": "alice",
-  "exp": 1570901261,
-  "aud": "https://foo.bar"
+  "exp": 1571188782,
+  "aud": "https://svc1.example.com"
 }
 ```
 
@@ -1825,10 +1831,21 @@ And Bob
     "group2"
   ],
   "sub": "bob",
-  "exp": 1570901261,
+  "exp": 1571188782,
   "iss": "source-service-account@fabled-ray-104117.iam.gserviceaccount.com",
-  "iat": 1570897661,
-  "aud": "https://foo.bar"
+  "iat": 1571185182,
+  "aud": "https://svc2.example.com"
+}
+```
+
+Bob, no groups
+```json
+{
+  "iss": "source-service-account@fabled-ray-104117.iam.gserviceaccount.com",
+  "iat": 1571185734,
+  "sub": "bob",
+  "exp": 1571189334,
+  "aud": "https://svc2.example.com"
 }
 ```
 
@@ -1836,6 +1853,7 @@ Export these values as environment variables
 ```
 export TOKEN_ALICE=<tokenvaluealice>
 export TOKEN_BOB=<tokenvaluebob>
+export TOKEN_BOB_NO_GROUPS=<tokenvaluebob2>
 ```
 
 Now inject the token into the `Authorization: Bearer` header and try to access the protected service:
@@ -1844,68 +1862,62 @@ Now inject the token into the `Authorization: Bearer` header and try to access t
 for i in {1..1000}; do curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version; sleep 1; done
 ```
 
-The request should now pass validation and you're in.  What we just did is have one policy that globally to the ingress-gateway.  You are free to apply selective per-service policies as shown in `auth-policy.yaml` file commented out.
+The request should now pass validation and you're in.  What we just did is have one policy that globally to the ingress-gateway.  Note, we applied per-service policies as shown in `auth-policy.yaml`
 
-Another configuration setting you would want to do but not demonstrated in this tutorial is to specify the `aud:` field that is service specific:
+What that means is if you use Alice's token to access `svc2`, you'll see an authentication validation error:
 
-```yaml
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: igpolicy
-  namespace: istio-system
-spec:
-..
-  origins:
-  - jwt:
-      audiences:
-      - "https://foo.bar"
-      - "https://svc1" <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-      - "https://svc2" <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<            
----
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: svc1-policy
-...
-  origins:
-  - jwt:
-      issuer: "issuer@project.iam.gserviceaccount.com"
-      audiences:
-      - "https://svc1" <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<N
----
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: svc2-policy
-...
-  origins:
-  - jwt:
-      audiences:
-      - "https://svc2" <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+```
+$ curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
+   Origin authentication failed.
 ```
 
-Anyway, these are authentication/origin controls.  The next sectio will cover RBAC + JWT Auth:
+In our example, we had a self-signed JWT locally meaning if the end-user had a service account capable of singing, they coudl setup any audience value (i.,e Alice could create a JWT token with the audience of `svc`).  We need to back up and apply addtional controls through RBAC.
 
 ##### RBAC Authorization using JWT
 
-At this point both Alice and Bob can access `svc1` and `svc2` because of the authentication policy is wide (and its authentication, not authorization).  
+You can apply RBAC policies to prevent access to resources furhter down if you choose The other way is to push the decision further down and use RBAC since all the bit above would do is origin authentication (not authorization).  The bit above also hinges on the fact that the Alice can't just create a jwt with the `https://svc2` audience unilaterally.
+
+
+The other approach is to add on RBAC to further refine controls.  We currently have two JWT tokens for Bob:
+
+One with groups
+```json
+{
+  "groups": [
+    "group1",
+    "group2"
+  ],
+  "sub": "bob",
+  "exp": 1571188782,
+  "iss": "source-service-account@fabled-ray-104117.iam.gserviceaccount.com",
+  "iat": 1571185182,
+  "aud": "https://svc2.example.com"
+}
 ```
- curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
- curl -k -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
+
+And one without
+```json
+{
+  "iss": "source-service-account@fabled-ray-104117.iam.gserviceaccount.com",
+  "iat": 1571185734,
+  "sub": "bob",
+  "exp": 1571189334,
+  "aud": "https://svc2.example.com"
+}
 ```
 
-This is not what we want: we want Alice to only access `svc1` and Bob to only access `svc2` (Bob has further restrictions on the claim which we will get to later)
+Both Tokens allow access through to the serivce beause they pass authentication (the audience and subject):
+```
+$ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n"  https://$GATEWAY_IP/version
+  200
 
-If you use an _Authentiation Policy_ for that, one way would be to specify audience validation:
+$ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB_NO_GROUPS" -o /dev/null -w "%{http_code}\n"  https://$GATEWAY_IP/version
+  200
+```
 
+But what we want to do is deny a request if the token does not include the group header (i know, if Bob had the service account file, he could "just set it"...anyway)
 
-
-The other way is to push the decision further down and use RBAC since all the bit above would do is origin authentication (not authorization).  The bit above also hinges on the fact that the Alice can't just create a jwt with the `https://svc2` audience unilaterally.
-
-
-The other approach is to add on RBAC instead.  First enable it
-
+First enable RBAC
 ```
 kubectl apply -f istio-rbac-config-ON.yaml
 ```
@@ -1917,32 +1929,36 @@ for i in {1..1000}; do curl -k -H "Host: svc1.example.com" -H "Authorization: Be
 ```
 and eventually you should see an RBAC error `RBAC: access denied` (not an `Origin Authentication failed` message; we arleady got past the gateway)
 
-We need to apply a policy that checks the JWT Payload for an indication who the user is.  We will use the `sub` field to do that within the JWT.
+So...we need to apply a policy that checks the JWT Payload for an indication who the user is.  We will use the `sub` field to do that within the JWT.
 
 >> **WARNING**  the sample code to generate the jwt at the client side uses a service account JWT where the client itself is minting the JWT specifications (meaning it can setup any claimsets it wants, any `sub` field.). In reality, you woouild want to use some other mechanism to acquire a token (Auth0, Firebase Custom Claims, etc).
 
-Anyway, lets setup a serviceRole and binding that checks for a specific claim value.  In our case, since we are atleast looking for the `sub` filed, we will have a rule that looks for `alice` while accessing `svc1` and `bob` for `svc2`.
+Anyway, lets setup a serviceRole and binding that checks for a specific claim value.  In our case, since we are atleast looking for the `sub` filed, we will have a rule that looks for `alice` while accessing `svc1` and `bob` for `svc2`.  For bob, a further restriction that the token needs to includ `groups = group1,group2`
 
 ```
 kubectl apply -f service-roles.yaml   
 ```
 
-Once you set that, only Alice should be able to access `svc1` and only Bob access `svc2`
+Once you set that, only Alice should be able to access `svc1` and only Bob access `svc2` except when no group info is provided in the JWT
 
 ```bash
 $ curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
-200
+  200
 
 $ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_ALICE"   -w "%{http_code}\n" https://$GATEWAY_IP/version
-403
-RBAC: access denied
+  401
+  Origin authentication failed.
 
 $ curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_BOB"   -w "%{http_code}\n" https://$GATEWAY_IP/version
-403
-RBAC: access denied
+  401
+  Origin authentication failed.
 
 $ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
-200
+  200
+
+$ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB_NO_GROUPS" --w "%{http_code}\n"  https://$GATEWAY_IP/version
+  403
+  RBAC: access denied
 ```
 
 #### Service to Service RBAC and Authentication Policy
@@ -2025,12 +2041,12 @@ The exclusion ploicy (2) should already be in effect (you can verify by running 
 ```bash
 # /version
 ## Bob
-curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
+curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
 200
 
 # /varz
 ## Bob
-curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_BOB"  -w "%{http_code}\n" https://$GATEWAY_IP/varz
+curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB"  -w "%{http_code}\n" https://$GATEWAY_IP/varz
 403
 RBAC: access denied
 ```
