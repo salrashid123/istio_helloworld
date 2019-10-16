@@ -1856,6 +1856,9 @@ export TOKEN_BOB=<tokenvaluebob>
 export TOKEN_BOB_NO_GROUPS=<tokenvaluebob2>
 ```
 
+>> **WARNING**  the sample code to generate the jwt at the client side uses a service account JWT where the client itself is minting the JWT specifications (meaning it can setup any claimsets it wants, any `sub` field.). In reality, you wouild want to use some other mechanism to acquire a token (Auth0, Firebase Custom Claims, etc).
+
+
 Now inject the token into the `Authorization: Bearer` header and try to access the protected service:
 
 ```bash
@@ -1875,10 +1878,9 @@ In our example, we had a self-signed JWT locally meaning if the end-user had a s
 
 ##### RBAC Authorization using JWT
 
-You can apply RBAC policies to prevent access to resources furhter down if you choose The other way is to push the decision further down and use RBAC since all the bit above would do is origin authentication (not authorization).  The bit above also hinges on the fact that the Alice can't just create a jwt with the `https://svc2` audience unilaterally.
+The other way is to push the allow/deny decision down from Authentication to Authorization by using RBAC.  The `Policy` based control above is really authentication where we need authorizatoin controls
 
-
-The other approach is to add on RBAC to further refine controls.  We currently have two JWT tokens for Bob:
+Consider we have two JWT tokens for `Bob`
 
 One with groups
 ```json
@@ -1927,13 +1929,73 @@ Wait maybe 30seconds (it takes time for the policy to propagte)
 ```
 for i in {1..1000}; do curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version; sleep 1; done
 ```
-and eventually you should see an RBAC error `RBAC: access denied` (not an `Origin Authentication failed` message; we arleady got past the gateway)
+and eventually you should see an RBAC error `RBAC: access denied` (not an `Origin Authentication failed` message.  This means we arleady got past the gateway but do't have any valid RBAC policies to let us thorugh further)
 
-So...we need to apply a policy that checks the JWT Payload for an indication who the user is.  We will use the `sub` field to do that within the JWT.
+We now need to apply a policy that checks the JWT Payload for an indication who the user is.  We will use the `sub` field to do that within the JWT.
 
->> **WARNING**  the sample code to generate the jwt at the client side uses a service account JWT where the client itself is minting the JWT specifications (meaning it can setup any claimsets it wants, any `sub` field.). In reality, you woouild want to use some other mechanism to acquire a token (Auth0, Firebase Custom Claims, etc).
+Setup a serviceRole and binding that checks for a specific claim values in addition to the `sub` that was already validated.  In our case, since we are atleast looking for the `sub` filed, we will have a rule that looks for `alice` while accessing `svc1` and `bob` for `svc2`.  For bob, a further restriction that the token needs to includ `groups = group1,group2`
 
-Anyway, lets setup a serviceRole and binding that checks for a specific claim value.  In our case, since we are atleast looking for the `sub` filed, we will have a rule that looks for `alice` while accessing `svc1` and `bob` for `svc2`.  For bob, a further restriction that the token needs to includ `groups = group1,group2`
+```yaml
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: svc1-viewer
+  namespace: default
+spec:
+  rules:
+  - services: ["svc1.default.svc.cluster.local"]
+    methods: ["GET"]  
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-svc1-viewer
+  namespace: default
+spec:
+  subjects:
+  - properties:
+      request.auth.claims[sub]: "alice"
+  roleRef:
+    kind: ServiceRole
+    name: svc1-viewer
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: svc2-viewer
+  namespace: default
+spec:
+  rules:
+  - services: ["svc2.default.svc.cluster.local"]
+    methods: ["GET"]    
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-svc2-viewer
+  namespace: default
+spec:
+  subjects:  
+  - properties:
+      request.auth.claims[sub]: "bob"
+      request.auth.claims[groups]: "group1"
+      request.auth.claims[groups]: "group2"
+  roleRef:
+    kind: ServiceRole
+    name: svc2-viewer
+---
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-svc1-viewer-sa
+  namespace: default
+spec:
+  subjects:
+  - user: cluster.local/ns/default/sa/svc1-sa
+  roleRef:
+    kind: ServiceRole
+    name: svc2-viewer
+```
 
 ```
 kubectl apply -f service-roles.yaml   
