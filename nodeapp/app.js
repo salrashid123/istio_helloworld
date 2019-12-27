@@ -159,9 +159,36 @@ app.get('/remote', (request, response) => {
   });
 })
 
-app.listen(port, (err) => {
-  if (err) {
-    return logger.error('something bad happened', err)
-  }
-  logger.info(`server is listening on ${port}`)
-})
+
+const server = app.listen(port, () => logger.info('Running…'));
+
+
+setInterval(() => server.getConnections(
+  (err, connections) => console.log(`${connections} connections currently open`)
+), 60000);
+
+process.on('SIGTERM', shutDown);
+process.on('SIGINT', shutDown);
+
+let connections = [];
+
+server.on('connection', connection => {
+  connections.push(connection);
+  connection.on('close', () => connections = connections.filter(curr => curr !== connection));
+});
+
+function shutDown() {
+  console.log('Received kill signal, shutting down gracefully');
+  server.close(() => {
+      logger.info('Closed out remaining connections');
+      process.exit(0);
+  });
+
+  setTimeout(() => {
+      logger.error('Could not close connections in time, forcefully shutting down');
+      process.exit(1);
+  }, 10000);
+
+  connections.forEach(curr => curr.end());
+  setTimeout(() => connections.forEach(curr => curr.destroy()), 5000);
+}

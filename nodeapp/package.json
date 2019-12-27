@@ -5,13 +5,13 @@
     "start": "node app.js"
   },
   "dependencies": {
+    "@google-cloud/trace-agent": "2.3.3",
     "debug": "~2.6.9",
-    "express": "~4.13.1",
-    "request-promise": "4.2.2",
     "dns": "0.2.2",
+    "express": "^4.17.1",
     "log4js": "^0.6.27",
-    "winston": "*",
-    "morgan": "~1.7.0",
-    "@google-cloud/trace-agent": "2.3.3"
+    "morgan": "^1.9.1",
+    "request-promise": "4.2.2",
+    "winston": "*"
   }
 }
