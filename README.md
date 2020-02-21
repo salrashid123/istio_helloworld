@@ -2229,6 +2229,34 @@ Once you do that, every request to the fronend service will fail unless the spec
 
 >> Note you'll ofcourse not want to run this serivce anywhere thas externally accessible!...this is just for a demo!!
 
+THis is what an inbound request from istio to the authorization server may look like:
+
+```bash
+$ go run grpc_server.go
+2020/02/20 20:41:40 Starting gRPC Server at :50051
+2020/02/20 20:42:41 >>> Authorization called check()
+2020/02/20 20:42:41 Inbound Headers:
+2020/02/20 20:42:41 {
+  ":authority": "35.238.81.95",
+  ":method": "GET",
+  ":path": "/version",
+  "accept": "*/*",
+  "authorization": "Bearer foo",
+  "content-length": "0",
+  "user-agent": "curl/7.66.0",
+  "x-b3-sampled": "0",
+  "x-b3-spanid": "b228f9e2179794c5",
+  "x-b3-traceid": "725c448565d59423b228f9e2179794c5",
+  "x-envoy-internal": "true",
+  "x-forwarded-client-cert": "By=spiffe://cluster.local/ns/default/sa/myapp-sa;Hash=ae6b57b6ce2932c74b54c40c5e1a7a13daf2828edeb688f9d273a6ea54f38dbf;Subject=\"\";URI=spiffe://cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account",
+  "x-forwarded-for": "10.128.0.61",
+  "x-forwarded-proto": "https",
+  "x-istio-attributes": "CiMKGGRlc3RpbmF0aW9uLnNlcnZpY2UubmFtZRIHEgVteWFwcAoqCh1kZXN0aW5hdGlvbi5zZXJ2aWNlLm5hbWVzcGFjZRIJEgdkZWZhdWx0Ck4KCnNvdXJjZS51aWQSQBI+a3ViZXJuZXRlczovL2lzdGlvLWluZ3Jlc3NnYXRld2F5LTk3ZGNkN2Y4Ny02MnpjZC5pc3Rpby1zeXN0ZW0KPQoYZGVzdGluYXRpb24uc2VydmljZS5ob3N0EiESH215YXBwLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwKOwoXZGVzdGluYXRpb24uc2VydmljZS51aWQSIBIeaXN0aW86Ly9kZWZhdWx0L3NlcnZpY2VzL215YXBw",
+  "x-request-id": "e7932678-b3a2-40b8-bc49-6b645448ae28"
+}
+```
+
+
 ## Cleanup
 
 The easiest way to clean up what you did here is to delete the GKE cluster!
