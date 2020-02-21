@@ -1337,7 +1337,7 @@ The following will setup a simple Request/Response LUA `EnvoyFilter` for the fro
 The settings below injects headers in both the request and response streams:
 
 ```
-kubectl apply -f istio-fev1-httpfilter.yaml
+kubectl apply -f istio-fev1-httpfilter-lua.yaml
 ```
 
 ```yaml
@@ -1688,7 +1688,8 @@ kubectl delete -f istio-rbac-config-ON.yaml
 kubectl delete -f istio-namespace-policy.yaml 
 kubectl delete -f istio-myapp-policy.yaml 
 kubectl delete -f istio-myapp-be-policy.yaml 
-kubectl delete -f istio-fev1-httpfilter.yaml 
+kubectl delete -f istio-fev1-httpfilter-lua.yaml
+kubectl delete -f istio-fev1-httpfilter-ext_authz.yaml 
 kubectl delete -f istio-fev1-bev1v2.yaml	
 kubectl delete -f all-istio.yaml
 
@@ -2183,6 +2184,50 @@ In summary,
 * Bob can access `svc2`
 * Bob cannot access `svc2`'s `/varz` endopint
 * `svc1` can only access `svc2`'s `/varz` endopint
+
+
+### External Authorization HTTPFilter
+
+You can also setup `envoy.ext_authz` Filter in this cluster.  When using the `ext_authz` filter on the frontend service, any request for `app: myapp, version: v1` will undergo an external authorization check by a serivce you run elsewhere.    The external serivice will only allow a request through if it carries `Authorizaton: Bearer foo` in the  header.
+
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: ext-authz-filter
+spec:
+  workloadLabels:
+    app: myapp
+    version: v1
+  filters:
+  - listenerMatch:
+      portNumber: 8080
+      listenerType: SIDECAR_INBOUND
+    filterName: envoy.ext_authz
+    filterType: HTTP
+    filterConfig:
+      grpc_service:
+        google_grpc:
+           target_uri: "ip_of_your_authz_server:50051"
+           stat_prefix: "ext_authz"
+```
+
+To use this type of authorization check, you will need to run a serivce somewhere (either within istio or external to istio).  The following runs the serivce external to istio:
+
+- [Envoy External Authorization server (envoy.ext_authz) HelloWorld](https://github.com/salrashid123/envoy_external_authz)
+
+First spin up a GCP VM that has an external IP, install golang there and startup the `authz` server in the git repo provided.  You'll also need to open up port `:50051` to that VM.  
+
+After that, add in the ip address of yoru vm to the yaml file and apply the envoy filter:
+
+```bash
+kubectl apply -f  istio-fev1-httpfilter-ext_authz.yaml
+```
+
+Once you do that, every request to the fronend service will fail unless the specific header is sent through.
+
+>> Note you'll ofcourse not want to run this serivce anywhere thas externally accessible!...this is just for a demo!!
 
 ## Cleanup
 

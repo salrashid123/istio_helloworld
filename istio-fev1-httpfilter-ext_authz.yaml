@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: ext-authz-filter
+spec:
+  workloadLabels:
+    app: myapp
+    version: v1
+  filters:
+  - listenerMatch:
+      portNumber: 8080
+      listenerType: SIDECAR_INBOUND
+    filterName: envoy.ext_authz
+    filterType: HTTP
+    filterConfig:
+      grpc_service:
+        google_grpc:
+           target_uri: "ip_of_your_authz_server:50051"
+           stat_prefix: "ext_authz"
