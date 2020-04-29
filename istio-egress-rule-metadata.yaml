@@ -3,12 +3,15 @@ kind: ServiceEntry
 metadata:
   name: metadata-ext
 spec:
+  addresses: 
+  - 169.254.169.254    
   hosts:
   - metadata.google.internal
-  - 169.254.169.254
   ports:
   - number: 80
     name: http
     protocol: HTTP
-  resolution: DNS
+  resolution: STATIC
   location: MESH_EXTERNAL
+  endpoints:
+  - address: 169.254.169.254

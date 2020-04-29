@@ -11,6 +11,7 @@ i understand something is to rewrite sections and only those sections from the g
 
 ## Istio version used
 
+* 04/28/20: Istio 1.5.2
 * 10/12/19: Istio 1.3.2
 * 03/10/19:  Istio 1.1.0
 * 01/09/19:  Istio 1.0.5
@@ -26,13 +27,19 @@ i understand something is to rewrite sections and only those sections from the g
 - [Destination Rules](#destination-rules)
 - [Egress Rules](#egress-rules)
 - [Egress Gateway](#egress-gateway)
+- [WebAssembly](#webassembly)
 - [LUA HttpFilter](#lua-httpfilter)
 - [Authorization](#autorization)
 - [JWT Authentication an Authorization](#jwt-auth-autorization)
-- [Service to Service RBAC and Authentication Policy](service-to-service-rbac-and-authentication-policy)
+- [Service to Service Authentication Policy](service-to-service-rbac-and-authentication-policy)
 - [Internal LoadBalancer (GCP)](#internal-loadbalancer)
 - [Mixer Out of Process Authorization Adapter](https://github.com/salrashid123/istio_custom_auth_adapter)
 - [Access GCE MetadataServer](#access-GCE-metadataServer)
+
+You can also find info about istio+external authorization server here:
+
+- [Istio External Authorization Server](https://github.com/salrashid123/istio_external_authorization_server)
+
 
 ## What is the app you used?
 
@@ -75,13 +82,14 @@ To give you a sense of the differences between a regular GKE specification yaml 
 
 ## Lets get started
 
-### Create a 1.10+ GKE Cluster and Bootstrap Istio
+### Create a 1.1+ GKE Cluster and Bootstrap Istio
 
-Note, the collowing cluster is setup with a  [aliasIPs](https://cloud.google.com/kubernetes-engine/docs/how-to/alias-ips) (`--enable-ip-alias` )
+Note, the following cluster is setup with a  [aliasIPs](https://cloud.google.com/kubernetes-engine/docs/how-to/alias-ips) (`--enable-ip-alias` )
+
+We will be installing istio with [istioctl](https://istio.io/docs/setup/install/istioctl/)
 
 ```bash
-
-gcloud container  clusters create cluster-1 --machine-type "n1-standard-2" --zone us-central1-a  --num-nodes 4 --enable-ip-alias
+gcloud container  clusters create cluster-1 --machine-type "n1-standard-2" --zone us-central1-a  --num-nodes 4 --enable-ip-alias -q
 
 gcloud container clusters get-credentials cluster-1 --zone us-central1-a
 
@@ -89,135 +97,93 @@ kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-ad
 
 kubectl create ns istio-system
 
-export ISTIO_VERSION=1.3.2
-wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz
-tar xvzf istio-$ISTIO_VERSION-linux.tar.gz
+export ISTIO_VERSION=1.5.2
 
-wget https://storage.googleapis.com/kubernetes-helm/helm-v2.11.0-linux-amd64.tar.gz
-tar xf helm-v2.11.0-linux-amd64.tar.gz
+ wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux.tar.gz 
+ tar xvf istio-$ISTIO_VERSION-linux.tar.gz 
+ rm istio-$ISTIO_VERSION-linux.tar.gz 
 
-export PATH=`pwd`/istio-$ISTIO_VERSION/bin:`pwd`/linux-amd64/:$PATH
+ wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istioctl-$ISTIO_VERSION-linux.tar.gz
+  tar xvf istioctl-$ISTIO_VERSION-linux.tar.gz
+ rm istioctl-$ISTIO_VERSION-linux.tar.gz
 
-helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio-init --name istio-init --namespace istio-system | kubectl apply -f -
+ wget https://storage.googleapis.com/kubernetes-helm/helm-v2.11.0-linux-amd64.tar.gz
+ tar xf helm-v2.11.0-linux-amd64.tar.gz
+ rm helm-v2.11.0-linux-amd64.tar.gz
 
-# https://github.com/istio/istio/tree/master/install/kubernetes/helm/istio#configuration
-# https://istio.io/docs/reference/config/installation-options/
+ export PATH=`pwd`:`pwd`/linux-amd64/:$PATH
 
-helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio --name istio --namespace istio-system  \
-   --set prometheus.enabled=true \
-   --set grafana.enabled=true \
-   --set tracing.enabled=true \
-   --set sidecarInjectorWebhook.enabled=true \
-   --set gateways.istio-ilbgateway.enabled=true \
-   --set global.outboundTrafficPolicy.mode=REGISTRY_ONLY \
-   --set gateways.istio-egressgateway.enabled=true \
-   --set global.mtls.enabled=true > istio.yaml
+cd istio-$ISTIO_VERSION
 
+istioctl manifest apply --set profile=demo   \
+ --set values.global.controlPlaneSecurityEnabled=true  \
+ --set values.global.mtls.enabled=true  \
+ --set values.sidecarInjectorWebhook.enabled=true  \
+ --set values.gateways.istio-egressgateway.enabled=true -f ../overlay-istio-gateway.yaml
 
-kubectl apply -f istio.yaml
-kubectl apply -f istio-ilbgateway-service.yaml
+## https://github.com/istio/istio/pull/22951
+## once that is fixed, use  --set meshConfig.outboundTrafficPolicy.mode=REGISTRY_ONLY  
+## in the command above, for now apply manual egress policy 
+kubectl get configmap istio -n istio-system -o yaml | sed 's/mode: ALLOW_ANY/mode: REGISTRY_ONLY/g' | kubectl replace -n istio-system -f -
+
+$ istioctl profile dump --config-path components.ingressGateways demo
+$ istioctl profile dump --config-path values.gateways.istio-ingressgateway demo
+
 
 kubectl label namespace default istio-injection=enabled
-
-
-export USERNAME=$(echo -n 'admin' | base64)
-export PASSPHRASE=$(echo -n 'admin' | base64)
-export NAMESPACE=istio-system
-
-echo '
-apiVersion: v1
-kind: Secret
-metadata:
-  name: kiali
-  namespace: $NAMESPACE
-  labels:
-    app: kiali
-type: Opaque
-data:
-  username: $USERNAME
-  passphrase: $PASSPHRASE           
-' | envsubst > kiali_secret.yaml
-
-kubectl apply -f kiali_secret.yaml
-
-export KIALI_OPTIONS=" --set kiali.enabled=true "
-KIALI_OPTIONS=$KIALI_OPTIONS"  --set kiali.dashboard.grafanaURL=http://localhost:3000"
-KIALI_OPTIONS=$KIALI_OPTIONS" --set kiali.dashboard.jaegerURL=http://localhost:16686"
-helm template istio-$ISTIO_VERSION/install/kubernetes/helm/istio --name istio --namespace istio-system $KIALI_OPTIONS  > istio_kiali.yaml
-
-kubectl apply -f istio_kiali.yaml
 ```
 
 Wait maybe 2 to 3 minutes and make sure all the Deployments are live:
 
-- For reference, here are the Istio [installation options](https://istio.io/docs/reference/config/installation-options/)
+- For reference, here are the Istio [operator installation options](https://istio.io/docs/reference/config/istio.operator.v1alpha1/)
 
 ### Make sure the Istio installation is ready
 
-Verify this step by makeing sure all the ```Deployments``` are Available.
+Verify this step by making sure all the ```Deployments``` are Available.
 
 ```bash
 $ kubectl get no,po,rc,svc,ing,deployment -n istio-system
-NAME                                            STATUS    ROLES     AGE       VERSION
-node/gke-cluster-1-default-pool-21eaedac-dn3f   Ready     <none>    15m       v1.11.7-gke.4
-node/gke-cluster-1-default-pool-21eaedac-jmqc   Ready     <none>    15m       v1.11.7-gke.4
-node/gke-cluster-1-default-pool-21eaedac-rg9g   Ready     <none>    15m       v1.11.7-gke.4
-node/gke-cluster-1-default-pool-21eaedac-szgb   Ready     <none>    15m       v1.11.7-gke.4
+NAME                                            STATUS   ROLES    AGE     VERSION
+node/gke-cluster-1-default-pool-59e1c366-26wn   Ready    <none>   4m13s   v1.14.10-gke.27
+node/gke-cluster-1-default-pool-59e1c366-67nl   Ready    <none>   4m21s   v1.14.10-gke.27
+node/gke-cluster-1-default-pool-59e1c366-f43v   Ready    <none>   4m13s   v1.14.10-gke.27
+node/gke-cluster-1-default-pool-59e1c366-xgbn   Ready    <none>   4m13s   v1.14.10-gke.27
 
-NAME                                          READY     STATUS      RESTARTS   AGE
-pod/grafana-7b46bf6b7c-g7v7b                  1/1       Running     0          5m
-pod/istio-citadel-75fdb679db-bm6ct            1/1       Running     0          5m
-pod/istio-cleanup-secrets-1.1.0-6k6mw         0/1       Completed   0          5m
-pod/istio-egressgateway-75d546b87f-prqw2      1/1       Running     0          5m
-pod/istio-galley-c864b5c86-sz4sq              1/1       Running     0          5m
-pod/istio-grafana-post-install-1.1.0-8xx8r    0/1       Completed   0          5m
-pod/istio-ilbgateway-685bddb658-9zkss         1/1       Running     0          5m
-pod/istio-ingressgateway-668676fbdb-jhhgz     1/1       Running     0          5m
-pod/istio-init-crd-10-gkzcd                   0/1       Completed   1          11m
-pod/istio-init-crd-11-89ssc                   0/1       Completed   2          11m
-pod/istio-pilot-f4c98cfbf-cqxlr               2/2       Running     0          5m
-pod/istio-policy-6cbbd844dd-w7z5j             2/2       Running     3          5m
-pod/istio-security-post-install-1.1.0-s2qml   0/1       Completed   0          5m
-pod/istio-sidecar-injector-7b47cb4689-sxzlp   1/1       Running     0          5m
-pod/istio-telemetry-ccc4df498-rzmtx           2/2       Running     4          5m
-pod/istio-tracing-75dd89b8b4-gjnkh            1/1       Running     0          5m
-pod/kiali-5d68f4c676-8z6zd                    1/1       Running     0          2m
-pod/prometheus-89bc5668c-f9kzd                1/1       Running     0          5m
-pod/servicegraph-5d4b49848-7gffl              1/1       Running     1          5m
+NAME                                        READY   STATUS    RESTARTS   AGE
+pod/grafana-556b649566-ndzgv                1/1     Running   0          56s
+pod/istio-egressgateway-645d78f8dd-8vn5l    1/1     Running   0          61s
+pod/istio-ilbgateway-84c65cfccb-v7vh7       1/1     Running   0          60s
+pod/istio-ingressgateway-746fbb966d-ckf8x   1/1     Running   0          60s
+pod/istio-tracing-7cf5f46848-mmkbb          1/1     Running   0          56s
+pod/istiod-8cc9bfd95-9rlw2                  1/1     Running   0          80s
+pod/kiali-b4b5b4fb8-smbhv                   1/1     Running   0          56s
+pod/prometheus-75f89f4df8-jmck8             2/2     Running   0          56s
 
-NAME                             TYPE           CLUSTER-IP    EXTERNAL-IP      PORT(S)                                                                                                                                      AGE
-service/grafana                  ClusterIP      10.0.2.195    <none>           3000/TCP                                                                                                                                     5m
-service/istio-citadel            ClusterIP      10.0.8.63     <none>           8060/TCP,15014/TCP                                                                                                                           5m
-service/istio-galley             ClusterIP      10.0.9.253    <none>           443/TCP,15014/TCP,9901/TCP                                                                                                                   5m
-service/istio-ilbgateway         LoadBalancer   10.0.7.101    10.128.15.226    15011:32311/TCP,15010:32360/TCP,8060:32427/TCP,5353:30728/TCP,443:31124/TCP                                                                  5m
-service/istio-ingressgateway     LoadBalancer   10.0.10.117   35.184.101.110   80:31380/TCP,443:31390/TCP,31400:31400/TCP,15029:30266/TCP,15030:30818/TCP,15031:30590/TCP,15032:31962/TCP,15443:31628/TCP,15020:31509/TCP   5m
-service/istio-pilot              ClusterIP      10.0.11.242   <none>           15010/TCP,15011/TCP,8080/TCP,15014/TCP                                                                                                       5m
-service/istio-policy             ClusterIP      10.0.9.90     <none>           9091/TCP,15004/TCP,15014/TCP                                                                                                                 5m
-service/istio-sidecar-injector   ClusterIP      10.0.14.149   <none>           443/TCP                                                                                                                                      5m
-service/istio-telemetry          ClusterIP      10.0.9.12     <none>           9091/TCP,15004/TCP,15014/TCP,42422/TCP                                                                                                       5m
-service/jaeger-agent             ClusterIP      None          <none>           5775/UDP,6831/UDP,6832/UDP                                                                                                                   5m
-service/jaeger-collector         ClusterIP      10.0.10.230   <none>           14267/TCP,14268/TCP                                                                                                                          5m
-service/jaeger-query             ClusterIP      10.0.14.221   <none>           16686/TCP                                                                                                                                    5m
-service/kiali                    ClusterIP      10.0.1.104    <none>           20001/TCP                                                                                                                                    2m
-service/prometheus               ClusterIP      10.0.0.105    <none>           9090/TCP                                                                                                                                     5m
-service/servicegraph             ClusterIP      10.0.12.131   <none>           8088/TCP                                                                                                                                     5m
-service/tracing                  ClusterIP      10.0.13.7     <none>           80/TCP                                                                                                                                       5m
-service/zipkin                   ClusterIP      10.0.14.119   <none>           9411/TCP                                                                                                                                     5m
+NAME                                TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)                                                    AGE
+service/grafana                     ClusterIP      10.0.9.158    <none>        3000/TCP                                                   56s
+service/istio-egressgateway         ClusterIP      10.0.15.222   <none>        80/TCP,443/TCP,15443/TCP                                   60s
+service/istio-ilbgateway            LoadBalancer   10.0.2.129    10.128.0.78   443:32056/TCP                                              59s
+service/istio-ingressgateway        LoadBalancer   10.0.9.26     <pending>     443:30386/TCP                                              59s
+service/istio-pilot                 ClusterIP      10.0.0.84     <none>        15010/TCP,15011/TCP,15012/TCP,8080/TCP,15014/TCP,443/TCP   80s
+service/istiod                      ClusterIP      10.0.0.106    <none>        15012/TCP,443/TCP                                          79s
+service/jaeger-agent                ClusterIP      None          <none>        5775/UDP,6831/UDP,6832/UDP                                 56s
+service/jaeger-collector            ClusterIP      10.0.11.102   <none>        14267/TCP,14268/TCP,14250/TCP                              55s
+service/jaeger-collector-headless   ClusterIP      None          <none>        14250/TCP                                                  55s
+service/jaeger-query                ClusterIP      10.0.3.160    <none>        16686/TCP                                                  55s
+service/kiali                       ClusterIP      10.0.2.120    <none>        20001/TCP                                                  55s
+service/prometheus                  ClusterIP      10.0.0.170    <none>        9090/TCP                                                   55s
+service/tracing                     ClusterIP      10.0.13.130   <none>        80/TCP                                                     55s
+service/zipkin                      ClusterIP      10.0.13.242   <none>        9411/TCP                                                   55s
 
-NAME                                           DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deployment.extensions/grafana                  1         1         1            1           5m
-deployment.extensions/istio-citadel            1         1         1            1           5m
-deployment.extensions/istio-galley             1         1         1            1           5m
-deployment.extensions/istio-ilbgateway         1         1         1            1           5m
-deployment.extensions/istio-ingressgateway     1         1         1            1           5m
-deployment.extensions/istio-pilot              1         1         1            1           5m
-deployment.extensions/istio-policy             1         1         1            1           5m
-deployment.extensions/istio-sidecar-injector   1         1         1            1           5m
-deployment.extensions/istio-telemetry          1         1         1            1           5m
-deployment.extensions/istio-tracing            1         1         1            1           5m
-deployment.extensions/kiali                    1         1         1            1           2m
-deployment.extensions/prometheus               1         1         1            1           5m
-deployment.extensions/servicegraph             1         1         1            1           5m
+NAME                                         READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.extensions/grafana                1/1     1            1           56s
+deployment.extensions/istio-egressgateway    1/1     1            1           61s
+deployment.extensions/istio-ilbgateway       1/1     1            1           60s
+deployment.extensions/istio-ingressgateway   1/1     1            1           60s
+deployment.extensions/istio-tracing          1/1     1            1           56s
+deployment.extensions/istiod                 1/1     1            1           80s
+deployment.extensions/kiali                  1/1     1            1           56s
+deployment.extensions/prometheus             1/1     1            1           56s
 
 ```
 
@@ -226,8 +192,8 @@ deployment.extensions/servicegraph             1         1         1            
 
 Run
 
-```
-kubectl get svc istio-ingressgateway -n istio-system
+```bash
+$ kubectl get svc istio-ingressgateway -n istio-system
 
 export GATEWAY_IP=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 echo $GATEWAY_IP
@@ -267,39 +233,40 @@ basically, a default frontend-backend scheme with one replicas for each `v1` and
 > Note: the default yaml pulls and run my dockerhub image- feel free to change this if you want.
 
 
-```
+```bash
+cd ../
 kubectl apply -f all-istio.yaml
 kubectl apply -f istio-lb-certs.yaml
 ```
 
+Now enable the ingress gateway for both external and internal loadbalancer traffic on _only_ port `:443`:
 
-```
-kubectl apply -f istio-ingress-gateway.yaml
-kubectl apply -f istio-ingress-ilbgateway.yaml
+```bash
+kubectl apply -f istio-ingress-gateway.yaml -f istio-ingress-ilbgateway.yaml 
 
 kubectl apply -f istio-fev1-bev1.yaml
 ```
 
 Wait until the deployments complete:
 
-```
+```bash
 $ kubectl get po,deployments,svc,ing
-NAME                           READY     STATUS    RESTARTS   AGE
-pod/be-v1-7c9c9d9bb7-s8pgz     2/2       Running   0          50s
-pod/be-v2-6b47d48f6f-p8t5t     2/2       Running   0          49s
-pod/myapp-v1-6748d578f-pzzst   2/2       Running   0          50s
-pod/myapp-v2-b6cf849df-xqg8p   2/2       Running   0          50s
+NAME                            READY   STATUS    RESTARTS   AGE
+pod/be-v1-7b758776dc-hdjsj      2/2     Running   0          47s
+pod/be-v2-5b679f79d7-qbt94      2/2     Running   0          47s
+pod/myapp-v1-5f4dc769fc-fvtsz   2/2     Running   0          48s
+pod/myapp-v2-67c664b475-rz7wp   2/2     Running   0          47s
 
-NAME                             DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-deployment.extensions/be-v1      1         1         1            1           50s
-deployment.extensions/be-v2      1         1         1            1           49s
-deployment.extensions/myapp-v1   1         1         1            1           50s
-deployment.extensions/myapp-v2   1         1         1            1           50s
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.extensions/be-v1      1/1     1            1           47s
+deployment.extensions/be-v2      1/1     1            1           47s
+deployment.extensions/myapp-v1   1/1     1            1           48s
+deployment.extensions/myapp-v2   1/1     1            1           48s
 
 NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
-service/be           ClusterIP   10.0.2.26    <none>        8080/TCP   50s
-service/kubernetes   ClusterIP   10.0.0.1     <none>        443/TCP    19m
-service/myapp        ClusterIP   10.0.7.114   <none>        8080/TCP   50s
+service/be           ClusterIP   10.0.9.89    <none>        8080/TCP   47s
+service/kubernetes   ClusterIP   10.0.0.1     <none>        443/TCP    6m55s
+service/myapp        ClusterIP   10.0.1.17    <none>        8080/TCP   48s
 ```
 
 Notice that each pod has two containers:  one is from isto, the other is the applicaiton itself (this is because we have automatic sidecar injection enabled on the `default` namespace).
@@ -342,6 +309,12 @@ So...lets send traffic with the ip to the ```/versions```  on the frontend
 for i in {1..1000}; do curl -k  https://$GATEWAY_IP/version; sleep 1; done
 ```
 
+you may need to restart the ingress pod if the certs they used didn't pickup
+```bash
+INGRESS_POD_NAME=$(kubectl get po -n istio-system | grep ingressgateway\- | awk '{print$1}'); echo ${INGRESS_POD_NAME};
+kubectl delete po/$INGRESS_POD_NAME -n istio-system
+```
+
 You should see a sequence of 1's indicating the version of the frontend you just hit
 ```
 111111111111111111111111111111111
@@ -374,13 +347,11 @@ you should see output indicating traffic from the v1 backend verison: ```be-v1-*
 ```bash
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
 ```
 
 Note both Kiali and Grafana shows both frontend and backend service telemetry and traffic to ```be:v1```
@@ -448,7 +419,7 @@ spec:
 
 So lets apply the config with kubectl:
 
-```
+```bash
 kubectl replace -f istio-fev1-bev2.yaml
 ```
 
@@ -459,13 +430,12 @@ What the ```/hostz``` endpoint does is takes a users request to ```fe-*``` and t
 ```bash
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
 ```
 
 and on the frontend version is always one.
@@ -497,13 +467,11 @@ and backend is responses comes from both be-v1 and be-v2
 ```bash
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
 ```
 
 ![alt text](images/kiali_route_fev1v2_bev1v2.png)
@@ -549,7 +517,7 @@ spec:
 ```
 
 
-```
+```bash
 kubectl replace -f istio-route-version-fev1-bev1v2.yaml
 ```
 
@@ -686,36 +654,31 @@ with backend requests coming from _pretty much_ round robin
 ```bash
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
 ```
 
 Now change the ```istio-fev1-bev1v2.yaml```  to ```RANDOM``` and see response is from v1 and v2 random:
 ```bash
 $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
-"pod: [be-v1-7c9c9d9bb7-s8pgz]    node: [gke-cluster-1-default-pool-21eaedac-rg9g]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
+"pod: [be-v1-7b758776dc-hdjsj]    node: [gke-cluster-1-default-pool-59e1c366-26wn]"
+"pod: [be-v2-5b679f79d7-qbt94]    node: [gke-cluster-1-default-pool-59e1c366-xgbn]"
 
 ```
 
@@ -723,78 +686,49 @@ $ for i in {1..1000}; do curl -s -k https://$GATEWAY_IP/hostz | jq '.[0].body'; 
 
 The configuration here  sets up an internal loadbalancer on GCP to access an exposed istio service.
 
-The config settings that enabled this during istio initialization is
+The config settings that enabled this during istio setup was done by an operator and annotation:
 
-```
-   --set gateways.istio-ilbgateway.enabled=true
-```
+Specifically, we created a new `ingressGateway` and set its annotation to
+`cloud.google.com/load-balancer-type: "internal"`
 
-and in this tutorial, applied as a `Service` with:
-
-```
-   kubectl apply -f istio-ilbgateway-service.yaml
-```
-
-The yaml above specifies the exposed port forwarding to the service.  In our case, the exported port is `https-> :443`:
 
 ```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: istio-ilbgateway
-  namespace: istio-system
-  annotations:
-    cloud.google.com/load-balancer-type: "internal"
-  labels:
-    chart: gateways
-    heritage: Tiller
-    release: istio
-    app: istio-ilbgateway
-    istio: ilbgateway
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
 spec:
-  type: LoadBalancer
-  selector:
-    app: istio-ilbgateway
-    istio: ilbgateway
-  ports:
-    -
-      name: grpc-pilot-mtls
-      port: 15011
-    -
-      name: grpc-pilot
-      port: 15010
-    -
-      name: tcp-citadel-grpc-tls
-      port: 8060
-      targetPort: 8060
-    -
-      name: tcp-dns
-      port: 5353
-
-    -
-      name: https
-      port: 443
+  components:
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+        k8s:
+          service:
+            ports:
+            - name: https
+              port: 443
+              protocol: TCP
+      - name: istio-ilbgateway
+        enabled: true
+        k8s:
+          serviceAnnotations:
+            cloud.google.com/load-balancer-type: "internal"
+          service:
+            ports:
+            - port: 443
+              name: https
+              protocol: TCP
 ```
 
-( the other entries exposing ports (`grpc-pilot-mtls`, `grpc-pilot`) are uses for expansion and for this example, can be removed).
-
-We also defined an ILB `Gateway`  earlier in `all-istio.yaml` as:
+We did that duirng setup and later on, attached a Gateway to it which also exposed only `:443`
 
 ```yaml
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: my-gateway-ilb
 spec:
   selector:
-    istio: ilbgateway
+    istio: istio-ilbgateway
   servers:
-  - port:
-      number: 80
-      name: http
-      protocol: HTTP  
-    hosts:
-    - "*"
   - port:
       number: 443
       name: https
@@ -804,10 +738,11 @@ spec:
     tls:
       mode: SIMPLE
       serverCertificate: /etc/istio/ilbgateway-certs/tls.crt
-      privateKey: /etc/istio/ilbgateway-certs/tls.key
- ```
+      privateKey: /etc/istio/ilbgateway-certs/tls.key 
+```
 
-As was `VirtualService` that specifies the valid inbound gateways that can connect to our service.  This configuration was defined when we applied `istio-fev1-bev1.yaml`:
+
+We also specified a `VirtualService` which selected these inbound gateways to the `myapp` service:  This configuration was defined when we applied `istio-fev1-bev1.yaml`:
 
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
@@ -836,27 +771,7 @@ Note the `gateways:` entry in the `VirtualService` includes `my-gateway-ilb` whi
   - my-gateway-ilb
 ```
 
-As mentioned above, we had to _manually_ specify the `port` the ILB will listen on for traffic inbound to this service.  For this example, the ILB listens on `:443` so we setup the `Service` with that port
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: istio-ilbgateway
-  namespace: istio-system
-  annotations:
-    cloud.google.com/load-balancer-type: "internal"
-...
-spec:
-  type: LoadBalancer
-  selector:
-    app: istio-ilbgateway
-    istio: ilbgateway
-  ports:
-    -
-      name: https
-      port: 443
-```
+As mentioned above, we had to _manually_ specify the `port` the ILB will listen on for traffic inbound to this service. \
 
 Finally, the certficates `Secret` mounted at `/etc/istio/ilbgateway-certs/` was specified this in the initial `all-istio.yaml` file:
 
@@ -884,7 +799,7 @@ echo $ILB_GATEWAY_IP
 Then from a GCE VM in the same VPC, send some traffic over on the internal address
 
 ```bash
-you@gce-instance-1:~$ curl -vk https://10.128.15.226/
+you@gce-instance-1:~$ curl -vk https://10.128.0.78/
 
 < HTTP/2 200 
 < x-powered-by: Express
@@ -983,8 +898,14 @@ To test the default policies, the `/requestz` endpoint tries to fetch the follow
 
 First make sure there is an inbound rule already running:
 
-```
+```bash
 kubectl replace -f istio-fev1-bev1.yaml
+```
+
+And that you're using REGISTRY_ONLY:
+
+```bash
+kubectl get configmap istio -n istio-system -o yaml | grep -o "mode: REGISTRY_ONLY"
 ```
 
 - Without egress rule, requests will fail:
@@ -1012,7 +933,7 @@ gives
   {
     "url": "http://www.bbc.com/robots.txt",
     "body": "",
-    "statusCode": 404
+    "statusCode": 502
   },
   {
     "url": "https://www.cornell.edu/robots.txt",
@@ -1041,7 +962,7 @@ gives
 
 ```
 
-> Note: the `404` response for the ```bbc.com``` entry is the actual denial rule from the istio-proxy
+> Note: the `502` response for the ```bbc.com``` entry is the actual denial rule from the istio-proxy (`502`->Bad Gateway)
 
 
 then apply the egress policy which allows ```www.bbc.com:80``` and ```www.google.com:443```
@@ -1049,7 +970,6 @@ then apply the egress policy which allows ```www.bbc.com:80``` and ```www.google
 ```
 kubectl apply -f istio-egress-rule.yaml
 ```
-
 
 gives
 
@@ -1120,6 +1040,26 @@ then lets apply the rule for the gateway:
 kubectl apply -f istio-egress-gateway.yaml
 ```
 
+Notice the gateway TLS mode is `PASSTHROUGH` ("_Note the PASSTHROUGH TLS mode which instructs the gateway to pass the ingress traffic AS IS, without terminating TLS._")
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: istio-egressgateway
+spec:
+  selector:
+    istio: egressgateway
+  servers:
+  - port:
+      number: 443
+      name: tls
+      protocol: TLS
+    hosts:
+    - www.yahoo.com
+    tls:
+      mode: PASSTHROUGH
+```
+
 ```bash
 curl -s -k https://$GATEWAY_IP/requestz | jq  '.'
 ```
@@ -1141,7 +1081,7 @@ curl -s -k https://$GATEWAY_IP/requestz | jq  '.'
   {
     "url": "http://www.bbc.com/robots.txt",
     "body": "",
-    "statusCode": 404
+    "statusCode": 502
   },
   {
     "url": "https://www.cornell.edu/robots.txt",
@@ -1171,11 +1111,17 @@ curl -s -k https://$GATEWAY_IP/requestz | jq  '.'
 ```
 
 
-Notice that only http request to yahoo succeeded on port `:443`.  Needless to say, this is pretty unusable; you have to originate ssl traffic from the host system itself or bypass the IP ranges rquests
+You can also tail the egress gateway logs:
+
+```bash
+$  kubectl logs -f --tail=0  -l istio=egressgateway -n istio-system
+[2020-04-29T15:23:39.949Z] "- - -" 0 - "-" "-" 829 5706 144 - "-" "-" "-" "-" "72.30.35.10:443" outbound|443||www.yahoo.com 10.12.1.4:57332 10.12.1.4:443 10.12.2.10:41592 www.yahoo.com -
+[2020-04-29T15:23:48.195Z] "- - -" 0 - "-" "-" 829 5722 138 - "-" "-" "-" "-" "98.138.219.231:443" outbound|443||www.yahoo.com 10.12.1.4:40632 10.12.1.4:443 10.12.2.10:41658 www.yahoo.com -
+```
 
 ### TLS Origination for Egress Traffic
 
-In this mode, traffic exits the pod unencrypted but gets proxied via the gateway for an https destination.  For this to work, traffic must originate from the pod unencrypted but specify the port as an SSL prot.  In current case, if you want to send traffic for `https://www.yahoo.com/robots.txt`, emit the request from the pod as `http://www.yahoo.com:443/robots.txt`.  Note the traffic is `http://` and the port is specified: `:443`
+In this mode, traffic exits the pod unencrypted but gets proxied via the gateway for an https destination.  For this to work, traffic must originate from the pod unencrypted but specify the port as an SSL port.  In current case, if you want to send traffic for `https://www.yahoo.com/robots.txt`, emit the request from the pod as `http://www.yahoo.com:443/robots.txt`.  Note the traffic is `http://` and the port is specified: `:443`
 
 
 Ok, lets try it out, apply:
@@ -1193,40 +1139,51 @@ Then notice just the last, unencrypted traffic to yahoo succeeds
     "url": "https://www.google.com/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: write EPROTO 140000773143424:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+      "message": "Error: Client network socket disconnected before secure TLS connection was established",
+    }
   },
   {
     "url": "http://www.google.com:443/robots.txt",
-    "body": "",
-    "statusCode": 404
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: read ECONNRESET",
+    }
   },
   {
     "url": "http://www.bbc.com/robots.txt",
     "body": "",
-    "statusCode": 404
+    "statusCode": 502
   },
   {
     "url": "https://www.cornell.edu/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: write EPROTO 140000773143424:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+      "message": "Error: Client network socket disconnected before secure TLS connection was established",
   },
   {
     "url": "https://www.uwo.ca/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: write EPROTO 140000773143424:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+      "message": "Error: Client network socket disconnected before secure TLS connection was established",
+    }
+  },
+  {
+    "url": "http://www.yahoo.com/robots.txt",
+    "statusCode": 200
   },
   {
     "url": "https://www.yahoo.com/robots.txt",
     "statusCode": {
       "name": "RequestError",
-      "message": "Error: write EPROTO 140000773143424:error:1408F10B:SSL routines:ssl3_get_record:wrong version 
+      "message": "Error: Client network socket disconnected before secure TLS connection was established",
+    }
   },
   {
     "url": "http://www.yahoo.com:443/robots.txt",
-    "body": "<!DOCTYPE html>\
-    "statusCode": 502
+    "statusCode": {
+      "name": "RequestError",
+      "message": "Error: read ECONNRESET",
+    }
   }
 ]
 
@@ -1259,17 +1216,17 @@ So if you make an inital request, you'll see `404` errors from Envoy since we di
   {
     "url": "http://metadata.google.internal/computeMetadata/v1/project/project-id",
     "body": "",
-    "statusCode": 404
+    "statusCode": 502
   },
   {
     "url": "http://metadata/computeMetadata/v1/project/project-id",
     "body": "",
-    "statusCode": 404
+    "statusCode": 502
   },
   {
     "url": "http://169.254.169.254/computeMetadata/v1/project/project-id",
     "body": "",
-    "statusCode": 404
+    "statusCode": 502
   }
 ]
 ```
@@ -1280,55 +1237,127 @@ So lets do just that:
   kubectl apply -f istio-egress-rule-metadata.yaml
 ```
 
-Then what we see is are two of the three hosts succeed since the `.yaml` file did not define an entry for `metadata`
-
-```json
-[
-  {
-    "url": "http://metadata.google.internal/computeMetadata/v1/project/project-id",
-    "body": "mineral-minutia-820",
-    "statusCode": 200
-  },
-  {
-    "url": "http://metadata/computeMetadata/v1/project/project-id",
-    "body": "",
-    "statusCode": 404
-  },
-  {
-    "url": "http://169.254.169.254/computeMetadata/v1/project/project-id",
-    "body": "mineral-minutia-820",
-    "statusCode": 200
-  }
-]
-```
-
-
-Well, why didn't we?  The parser for the pilot did't like it if we added in
-
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
 kind: ServiceEntry
 metadata:
   name: metadata-ext
 spec:
+  addresses: 
+  - 169.254.169.254    
   hosts:
   - metadata.google.internal
-  - metadata
-  - 169.254.169.254
   ports:
   - number: 80
     name: http
     protocol: HTTP
-  resolution: DNS
+  resolution: STATIC
   location: MESH_EXTERNAL
+  endpoints:
+  - address: 169.254.169.254
 ```
+
+Try it again and you should see 
+
+```json
+[
+  {
+    "url": "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+    "statusCode": 200
+  },
+  {
+    "url": "http://metadata/computeMetadata/v1/project/project-id",
+    "statusCode": 502
+  },
+  {
+    "url": "http://169.254.169.254/computeMetadata/v1/project/project-id",
+    "statusCode": 200
+  }
+]
+
+```
+
+### WebAssembly
+
+Ref: [Redefining extensibility in proxies - introducing WebAssembly to Envoy and Istio](https://istio.io/blog/2020/wasm-announce/)
+
+The following steps will deploy a trivial `wasm` module to the cluster that returns `hello world` back as a header.
+
+We're using a pregenerated wasm module here but if you are interested in setting one up on your own, see
+
+- [WebAssembly + Envoy Helloworld](https://gist.github.com/salrashid123/30fc1969b53c654310e25bca73bf5206)
+
+
+Install `wasm` cli:
 
 ```bash
-$ kubectl apply -f istio-egress-rule-metadata.yaml
-Error from server: error when creating "istio-egress-rule-metadata.yaml": admission webhook "pilot.validation.istio.io" denied the request: configuration is invalid: invalid host metadata
+curl -sL https://run.solo.io/wasme/install | sh
+export PATH=$HOME/.wasme/bin:$PATH
 ```
 
-Is that a problem?  Maybe not...Most of the [google-auth libraries](https://github.com/googleapis/google-auth-library-python/blob/master/google/auth/compute_engine/_metadata.py#L35) uses the fully qualified hostname or IP address (it used to use just `metadata` so that wou've been a problem)
+Create a simple 'helloworld' application
+
+```bash
+wasme init ./new-filter --language=assemblyscript --platform istio --disable-prompt
+
+cd new-filter
+
+[edit assembly/index.ts as necessary]
+
+wasme build assemblyscript -t webassemblyhub.io/salrashid123/add-header:v0.1 .
+
+wasme push webassemblyhub.io/salrashid123/add-header:v0.1
+
+wasme pull webassemblyhub.io/salrashid123/add-header:v0.1 -v
+```
+
+Deploy to cluster via
+
+`cli`:
+
+```bash
+# deploy
+wasme deploy istio webassemblyhub.io/salrashid123/add-header:v0.1   \
+    --id=myfilter    --namespace=default  \
+      --config 'any'   --labels app=myapp
+
+# remove
+wasme undeploy istio webassemblyhub.io/salrashid123/add-header:v0.1   \
+    --id=myfilter    --namespace=default  \
+      --config 'any'   --labels app=myapp      
+```
+
+`crd`:
+
+```bash
+# install CRDs
+kubectl apply -f https://github.com/solo-io/wasme/releases/latest/download/wasme.io_v1_crds.yaml
+kubectl apply -f https://github.com/solo-io/wasme/releases/latest/download/wasme-default.yaml
+
+# deploy
+kubectl apply -f istio-fev1-wasm.yaml
+
+# remove
+kubectl delete -f istio-fev1-wasm.yaml
+kubectl delete -f https://github.com/solo-io/wasme/releases/latest/download/wasme.io_v1_crds.yaml
+kubectl delete -f https://github.com/solo-io/wasme/releases/latest/download/wasme-default.yaml
+```
+
+While its deployed, if you inoke an endpoint, you will see the custom header:
+
+```bash
+$ curl -vk  https://$GATEWAY_IP/headerz
+
+< x-powered-by: Express
+< content-type: application/json; charset=utf-8
+< content-length: 610
+< etag: W/"262-vyZHt8NIkso86UBB8CCgkNkdChw"
+< date: Wed, 29 Apr 2020 15:57:39 GMT
+< x-envoy-upstream-service-time: 35
+< hello: world!                 <<<<<<<<<<<<<<<<
+< server: istio-envoy
+< 
+```
 
 ### LUA HTTPFilter
 
@@ -1368,7 +1397,7 @@ spec:
 Note the response headers back to the caller (`foo2:bar2`) and the echo of the headers as received by the service _from_ envoy (`foo:bar`)
 
 ```bash
-$ curl -vk  https://$GATEWAY_IP/headerz
+$ curl -vk  https://$GATEWAY_IP/headerz 
 
 > GET /headerz HTTP/2
 > Host: 35.184.101.110
@@ -1420,258 +1449,10 @@ curl -v -k https://$GATEWAY_IP/hostz
 
 ```
 
-### Authorization
+### Authorization and Authorization
 
-The following steps is basically another walkthrough of the [Istio RBAC](https://istio.io/docs/tasks/security/role-based-access-control/).
+The following steps is basically another walkthrough of the [RequestAuthentication](https://istio.io/docs/reference/config/security/request_authentication/) and [AuthorizationPolicy](https://istio.io/docs/reference/config/security/authorization-policy/)
 
-
-#### Enable Istio RBAC
-
-First lets verify we can access the frontend:
-
-```bash
-curl -vk https://$GATEWAY_IP/version
-1
-```
-
-Since we haven't defined rbac policies to enforce, it all works.  The moment we enable global policies below:
-
-```
-kubectl apply -f istio-rbac-config-ON.yaml
-```
-
-then
-```bash
-curl -vk https://$GATEWAY_IP/version
-
-< HTTP/2 403
-< content-length: 19
-< content-type: text/plain
-< date: Thu, 06 Dec 2018 23:13:32 GMT
-< server: istio-envoy
-< x-envoy-upstream-service-time: 6
-
-RBAC: access denied
-```
-
-Which means not even the default `istio-system` which itself holds the `istio-ingresss` service can access application target.  Lets go about and give it access w/ a namespace policy for the `istio-system` access.
-
-#### NamespacePolicy
-
-```
-kubectl apply -f istio-namespace-policy.yaml
-```
-
-then
-
-```bash
-curl -vk https://$GATEWAY_IP/version
-
-< HTTP/2 200
-< x-powered-by: Express
-< content-type: text/html; charset=utf-8
-< content-length: 1
-< etag: W/"1-xMpCOKC5I4INzFCab3WEmw"
-< date: Thu, 06 Dec 2018 23:16:36 GMT
-< x-envoy-upstream-service-time: 97
-< server: istio-envoy
-
-1
-```
-
-but access to the backend gives:
-
-```bash
-curl -vk https://$GATEWAY_IP/hostz
-
-< HTTP/2 200
-< x-powered-by: Express
-< content-type: application/json; charset=utf-8
-< content-length: 106
-< etag: W/"6a-dQwmR/853lXfaotkjDrU4w"
-< date: Thu, 06 Dec 2018 23:30:17 GMT
-< x-envoy-upstream-service-time: 52
-< server: istio-envoy
-
-
-[
-  {
-    "url": "http://be.default.svc.cluster.local:8080/backend",
-    "body": "RBAC: access denied",
-    "statusCode": 403
-  }
-]
-```
-
-This is because the namespace rule we setup allows the `istio-sytem` _and_ `default` namespace access to any service that matches the label
-
-```yaml
-  labels:
-    app: myapp
-```
-
-but our backend has a label of
-
-```yaml
-  selector:
-    app: be
-```
-
-If you want to verify, just add that label (`values: ["myapp", "be"]`) to `istio-namespace-policy.yaml`  and apply
-
-
-Anyway, lets revert the namespace policy to allow access back again
-
-```
-kubectl delete -f istio-namespace-policy.yaml
-```
-
-You should now just see `RBAC: access denied` while accessing any page
-
-#### ServiceLevel Access Control
-
-Lets move on to [ServiceLevel Access Control](https://istio.io/docs/tasks/security/role-based-access-control/#service-level-access-control).
-
-What this allows is more precise service->service selective access.
-
-First lets give access for the ingress gateway access to the frontend:
-
-```
-kubectl apply -f istio-myapp-policy.yaml
-```
-
-Wait maybe 30seconds and no you should again have access to the frontend.
-
-```bash
-curl -v -k https://$GATEWAY_IP/version
-
-< HTTP/2 200
-< x-powered-by: Express
-< content-type: text/html; charset=utf-8
-< content-length: 1
-< etag: W/"1-xMpCOKC5I4INzFCab3WEmw"
-< date: Thu, 06 Dec 2018 23:42:43 GMT
-< x-envoy-upstream-service-time: 8
-< server: istio-envoy
-1
-```
-
-but not the backend
-
-```bash
- curl -v -k https://$GATEWAY_IP/hostz
-
-< HTTP/2 200
-< x-powered-by: Express
-< content-type: application/json; charset=utf-8
-< content-length: 106
-< etag: W/"6a-dQwmR/853lXfaotkjDrU4w"
-< date: Thu, 06 Dec 2018 23:42:48 GMT
-< x-envoy-upstream-service-time: 27
-< server: istio-envoy
-
-[
-  {
-    "url": "http://be.default.svc.cluster.local:8080/backend",
-    "body": "RBAC: access denied",
-    "statusCode": 403
-  }
-]
-```
-
-ok, how do we get access back from `myapp`-->`be`...we'll add on another policy that allows the service account for the frontend `myapp-sa` access
-to the backend.  Note, we setup the service account for the frontend back when we setup `all-istio.yaml` file:
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: myapp-sa
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: myapp-v1
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        app: myapp
-        version: v1
-    spec:
-      serviceAccountName: myapp-sa
-```
-
-So to allow `myapp-sa` access to `be.default.svc.cluster.local`, we need to apply a Role/RoleBinding as shown in`istio-myapp-be-policy.yaml`:
-
-```yaml
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRole
-metadata:
-  name: be-viewer
-  namespace: default
-spec:
-  rules:
-  - services: ["be.default.svc.cluster.local"]
-    methods: ["GET"]
----
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRoleBinding
-metadata:
-  name: bind-details-reviews
-  namespace: default
-spec:
-  subjects:
-  - user: "cluster.local/ns/default/sa/myapp-sa"
-  roleRef:
-    kind: ServiceRole
-    name: "be-viewer"
-```
-
-So lets apply this file:
-
-```
-kubectl apply -f istio-myapp-be-policy.yaml
-```
-
-Now you should be able to access the backend fine:
-
-```bash
-curl -v -k https://$GATEWAY_IP/hostz
-
-< HTTP/2 200 
-< x-powered-by: Express
-< content-type: application/json; charset=utf-8
-< content-length: 168
-< etag: W/"a8-+rQK5xf1qR07k9sBV9qawQ"
-< date: Fri, 22 Mar 2019 00:44:30 GMT
-< x-envoy-upstream-service-time: 33
-< foo2: bar2
-< server: istio-envoy
-
-[
-  {
-    "url": "http://be.default.svc.cluster.local:8080/backend",
-    "body": "pod: [be-v2-6b47d48f6f-p8t5t]    node: [gke-cluster-1-default-pool-21eaedac-dn3f]",
-    "statusCode": 200
-  }
-]
-```
-
-Just for refernce, the kubernetes service account JWT token can be found on the `myapp` pod mounted at `/var/run/secrets/kubernetes.io/serviceaccount/token`
-
-The format of the JWT token is:
-```json
-{
-  "iss": "kubernetes/serviceaccount",
-  "kubernetes.io/serviceaccount/namespace": "default",
-  "kubernetes.io/serviceaccount/secret.name": "myapp1-sa-token-jrh85",
-  "kubernetes.io/serviceaccount/service-account.name": "myapp-sa",
-  "kubernetes.io/serviceaccount/service-account.uid": "342440de-ec5f-11e9-a9d1-42010a80028b",
-  "sub": "system:serviceaccount:default:myapp-sa"
-}
-```
 
 #### JWT Authentication and RBAC Authorization
 
@@ -1684,10 +1465,6 @@ There are two users: Alice, Bob and two services `svc1`, `svc2`. Alice should be
 This section involves several steps...first delete any configurations that may still be active.  We need to do this because we will create two _new_ services on the frontend `svc1`, `svc2`
 
 ```bash
-kubectl delete -f istio-rbac-config-ON.yaml 
-kubectl delete -f istio-namespace-policy.yaml 
-kubectl delete -f istio-myapp-policy.yaml 
-kubectl delete -f istio-myapp-be-policy.yaml 
 kubectl delete -f istio-fev1-httpfilter-lua.yaml
 kubectl delete -f istio-fev1-httpfilter-ext_authz.yaml 
 kubectl delete -f istio-fev1-bev1v2.yaml	
@@ -1700,7 +1477,8 @@ kubectl apply -f istio-ingress-ilbgateway.yaml
 ```
 
 You can verify the configuration that are active by running:
-```
+
+```bash
 $ kubectl get svc,deployments,po,serviceaccounts,serviceentry,VirtualService,DestinationRule,ServiceRole,ServiceRoleBinding,RbacConfig,Secret,Policy,Gateway
 ```
 
@@ -1709,6 +1487,8 @@ Since the authentication mode described here involes a JWT, we will setup a Goog
 First redeploy an application that has two frontend services `svc1`, `svc2` accessible using the `Host:` headervalues (`svc1.domain.com` and `svc2.domain.com`)
 
 ```
+cd auth_rbac_policy/
+
 kubectl apply -f auth-deployment.yaml -f istio-fe-svc1-fe-svc2.yaml
 ```
 
@@ -1721,72 +1501,23 @@ Check the application still works (it should; we didn't apply policies yet yet)
 
 Apply the authentication policy that checks for a JWT signed by the service account and audience match on the service.  THe following policy will allow all three audience values through the ingress gateway but only those JWTs that match the audience for the service through at the service level:
 
-Edit `auth-policy.yaml` file and replace the values where the service account email is specified
+To bootstrap all this, first we need some JWTS.  In this case, we will use GCP serice accounts
+```
+To bootstrap the sample client, go to the Google Cloud Console and download a service account JSON file as described [here](https://cloud.google.com/iam/docs/creating-managing-service-account-keys).  Copy the service account to the `auth_rbac_policy/jwt_cli` folder and save the JSON file as `svc_account.json`.
 
-```yaml
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: igpolicy
-  namespace: istio-system
-spec:
-  targets:
-  - name: istio-ingressgateway
-    ports:
-    - number: 80
-    - number: 443
-  origins:
-  - jwt:
-      issuer: "issuer@project.iam.gserviceaccount.com"
-      audiences:
-      - "https://foo.bar"
-      - "https://svc1.example.com"
-      - "https://svc2.example.com"
-      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
-  principalBinding: USE_ORIGIN
----
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: svc1-policy
-spec:
-  targets:
-  - name: svc1
-  peers:
-  - mtls: {}  
-  origins:
-  - jwt:
-      issuer: "issuer@project.iam.gserviceaccount.com"
-      audiences:
-      - "https://svc1.example.com"
-      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
-  principalBinding: USE_ORIGIN
----
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: svc2-policy
-spec:
-  targets:
-  - name: svc2
-  peers:
-  - mtls: {}  
-  origins:
-  - jwt:
-      issuer: "issuer@project.iam.gserviceaccount.com"
-      audiences:
-      - "https://svc2.example.com"
-      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
-  principalBinding: USE_ORIGIN
+First get the name of the serice account that will sign the JWT:
+
+```bash
+cd auth_rbac_policy/jwt_cli/
+
+export PROJECT_ID=`gcloud config get-value core/project`
+gcloud iam service-accounts create sa-istio --display-name "JWT issuer for Istio helloworld"
+export SA_EMAIL=sa-istio@$PROJECT_ID.iam.gserviceaccount.com
+gcloud iam service-accounts keys create svc_account.json --iam-account=$SA_EMAIL
+$ echo SA_EMAIL
 ```
 
-> Note, we're setting up ingress Authentication policies and for each service, allow it to use peer `- mtls: {}` to surface the inbound JWT.  Ref:  [End-user authentication with mutual TLS](https://istio.io/docs/tasks/security/authn-policy/#end-user-authentication-with-mutual-tls): "you still need to add the mtls stanza to the authentication policy as the service-specific policy will override the mesh-wide (or namespace-wide) policy completely."
-
-
-The policy above looks for a specific issuer and audience value.  THe `jwksUri` field maps to the public certificate set for our service account.  THe well known url for the service account for Google Cloud is:
-First lets acquire JWT tokens 
-
-`https://www.googleapis.com/service_accounts/v1/jwk/<serviceAccountEmail>`
+Edit `auth-policy.yaml` file and replace the values where the service account email `$SA_EMAIL` is specified
 
 
 After you apply the policy
@@ -1794,19 +1525,48 @@ After you apply the policy
 ```
 kubectl apply -f auth-policy.yaml
 ```
+Note that by default we have mTLS and deny by default
 
- you should see an error:
-
-`Origin authentication failed.`
-
-
-THis indicates we did not send in the required header.   In the next setp, we will use a small *sample* client library to acquire a JWT.  You can also use google OIDC tokens or any other provider (Firebase, Auth0)
-
-To bootstrap the sample client, go to the Google Cloud Console and download a service account JSON file as described [here](https://cloud.google.com/iam/docs/creating-managing-service-account-keys).  Copy the service account to the `auth_rbac_policy/jwt_cli` folder and save the JSON file as `svc_account.json`.
-
-Run
+```yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+ name: deny-all-authz-ns
+spec:
+  {} 
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-peerauth
+  namespace: default
+spec:
+  mtls:
+    mode: STRICT
 ```
-cd auth_rbac_policy/jwt_cli/
+
+make an api call with a malformed authentication header:
+
+```bash
+$  curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer foo" -w "\n" https://$GATEWAY_IP/version
+   Jwt is not in the form of Header.Payload.Signature
+```
+
+now try without a header entirely:
+
+```bash
+$  curl -k -H "Host: svc1.example.com"  -w "\n" https://$GATEWAY_IP/version
+   RBAC: access denied
+```
+
+The error indicates we did not send in the required header.   In the next setp, we will use a small *sample* client library to acquire a JWT.  You can also use google OIDC tokens or any other provider (Firebase, Auth0)
+
+The policy above looks for a specific issuer and audience value.  THe `jwksUri` field maps to the public certificate set for our service account.  THe well known url for the service account for Google Cloud is:
+
+`https://www.googleapis.com/service_accounts/v1/jwk/<serviceAccountEmail>`
+
+
+```bash
 pip install -r requirements.txt
 python main.py
 ```
@@ -1866,22 +1626,28 @@ Now inject the token into the `Authorization: Bearer` header and try to access t
 for i in {1..1000}; do curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version; sleep 1; done
 ```
 
-The request should now pass validation and you're in.  What we just did is have one policy that globally to the ingress-gateway.  Note, we applied per-service policies as shown in `auth-policy.yaml`
+The request should now pass validation and you're in.  What we just did is have one policy that globally to the ingress-gateway.  Note, we also applied per-service policies in `auth-policy.yaml` that checks for the `aud:` value in the inbound token.
 
-What that means is if you use Alice's token to access `svc2`, you'll see an authentication validation error:
+What that means is if you use Alice's token to access `svc2`, you'll see an authentication validation error because that token doesn't have `"https://svc2.example.com"` in the audience
 
 ```
-$ curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
-   Origin authentication failed.
+$ curl -k -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
+   Audiences in Jwt are not allowed
 ```
 
 In our example, we had a self-signed JWT locally meaning if the end-user had a service account capable of singing, they coudl setup any audience value (i.,e Alice could create a JWT token with the audience of `svc`).  We need to back up and apply addtional controls through RBAC.
 
-##### RBAC Authorization using JWT
+##### Authorization using JWT Claims
 
-The other way is to push the allow/deny decision down from Authentication to Authorization by using RBAC.  The `Policy` based control above is really authentication where we need authorizatoin controls
+The other way is to push the allow/deny decision down from Authentication to Authorization and then using claims on the Authz polic 
 
-Consider we have two JWT tokens for `Bob`
+In `auth-policy.yaml`, uncomment the in the `AuthorizationPolicy` which checks for the correct audience value in the inbound token and apply
+
+```
+kubectl apply -f auth-policy.yaml
+```
+
+Consider we have two JWT tokens for `Bob`:
 
 One with groups
 ```json
@@ -1909,8 +1675,8 @@ And one without
 }
 ```
 
-Both Tokens allow access through to the serivce beause they pass authentication (the audience and subject):
-```
+Both Tokens allow access through to the serivce because they pass authentication (the audience and subject):
+```bash
 $ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n"  https://$GATEWAY_IP/version
   200
 
@@ -1920,271 +1686,181 @@ $ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB_NO_G
 
 But what we want to do is deny a request if the token does not include the group header (i know, if Bob had the service account file, he could "just set it"...anyway)
 
-First enable RBAC
-```
-kubectl apply -f istio-rbac-config-ON.yaml
+For now, edit `auth-policy.yaml` and modify the authorization policy for the backend service to make sure the groups are specified and the groups claims are set
+
+```yaml
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+ name: svc2-az
+spec:
+ selector:
+   matchLabels:
+     app: svc2
+ rules:
+ - to:
+   - operation:
+       methods: ["GET"]
+   when:
+   - key: request.auth.claims[iss]
+     values: ["sa-istio@mineral-minutia-820.iam.gserviceaccount.com"]
+   - key: request.auth.claims[aud]
+     values: ["https://svc2.example.com"]
+   - key: request.auth.claims[groups]
+     values: ["group1", "group2"]
+   - key: request.auth.claims[sub]
+     values: ["bob"]
 ```
 
 Wait maybe 30seconds (it takes time for the policy to propagte)
 
-```
-for i in {1..1000}; do curl -k -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version; sleep 1; done
-```
-and eventually you should see an RBAC error `RBAC: access denied` (not an `Origin Authentication failed` message.  This means we arleady got past the gateway but do't have any valid RBAC policies to let us thorugh further)
-
-We now need to apply a policy that checks the JWT Payload for an indication who the user is.  We will use the `sub` field to do that within the JWT.
-
-Setup a serviceRole and binding that checks for a specific claim values in addition to the `sub` that was already validated.  In our case, since we are atleast looking for the `sub` filed, we will have a rule that looks for `alice` while accessing `svc1` and `bob` for `svc2`.  For bob, a further restriction that the token needs to includ `groups = group1,group2`
-
-```yaml
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRole
-metadata:
-  name: svc1-viewer
-  namespace: default
-spec:
-  rules:
-  - services: ["svc1.default.svc.cluster.local"]
-    methods: ["GET"]  
----
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRoleBinding
-metadata:
-  name: bind-svc1-viewer
-  namespace: default
-spec:
-  subjects:
-  - properties:
-      request.auth.claims[sub]: "alice"
-  roleRef:
-    kind: ServiceRole
-    name: svc1-viewer
----
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRole
-metadata:
-  name: svc2-viewer
-  namespace: default
-spec:
-  rules:
-  - services: ["svc2.default.svc.cluster.local"]
-    methods: ["GET"]    
----
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRoleBinding
-metadata:
-  name: bind-svc2-viewer
-  namespace: default
-spec:
-  subjects:  
-  - properties:
-      request.auth.claims[sub]: "bob"
-      request.auth.claims[groups]: "group1"
-      request.auth.claims[groups]: "group2"
-  roleRef:
-    kind: ServiceRole
-    name: svc2-viewer
----
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRoleBinding
-metadata:
-  name: bind-svc1-viewer-sa
-  namespace: default
-spec:
-  subjects:
-  - user: cluster.local/ns/default/sa/svc1-sa
-  roleRef:
-    kind: ServiceRole
-    name: svc2-viewer
-```
-
-```
-kubectl apply -f service-roles.yaml   
-```
-
 Once you set that, only Alice should be able to access `svc1` and only Bob access `svc2` except when no group info is provided in the JWT
 
 ```bash
-$ curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
+$ curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_ALICE"  -w "%{http_code}\n" https://$GATEWAY_IP/version
   200
 
 $ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_ALICE"   -w "%{http_code}\n" https://$GATEWAY_IP/version
-  401
-  Origin authentication failed.
+  403
+  Audiences in Jwt are not allowed
 
 $ curl -sk -H "Host: svc1.example.com" -H "Authorization: Bearer $TOKEN_BOB"   -w "%{http_code}\n" https://$GATEWAY_IP/version
-  401
-  Origin authentication failed.
+  403
+  Audiences in Jwt are not allowed
 
 $ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
   200
 
-$ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB_NO_GROUPS" --w "%{http_code}\n"  https://$GATEWAY_IP/version
+$ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB_NO_GROUPS" -o /dev/null --w "%{http_code}\n"  https://$GATEWAY_IP/version
   403
   RBAC: access denied
 ```
 
-#### Service to Service RBAC and Authentication Policy
+Notice that bob was only allowed in when the token carried group info.
+
+#### Service to Service and Authentication Policy
 
 In this section, we extend the working set to allow Alice and Bob to access frontend services and ALSO setup an RBAC policy that allows `svcA` to access `svcB`.
 
-Note, we already did the last part (`svcA`->`svcB` _transport authentication_) in a previous section titled "ServiceLevel Access Control".  The difference between that and the current section is that the the AUthentiation Policy we just setup earlier exclusively looks for the end-user JWT token instead of implicit Transport Authenciation and identity based on the kubernetes service account associated with a Pod.  In other words this section will try to use both [Transport and End-User Authentication](https://istio.io/docs/concepts/security/#authentication) together with RBAC.
 
-
-To startoff, view the Authentication Policy for `svc2` that should be left off from the previous section:
-
+When we deployed the application, we associated a service account with each workoad
 ```yaml
-$ kubectl get Policy,ServiceRole,ServiceRoleBinding,RbacConfig
-
-$ kubectl describe policy.authentication.istio.io/svc2-policy
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: svc1-sa
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: svc2-sa
+---
 ```
 
-These policies allows JWT authentication token from external sources but what if we're on a `svc1` pod and attempt to access `svc2`?  \
+We can use this service acount to say: 'only allow requests from svc1-sa to access svc2'.  We do this by placing another `AuthorizationPolicy` policy rule in for `svc2`
 
-To check this, first create a shell on `svc1`:
+```yaml
+ - from:
+   - source:
+       principals: ["cluster.local/ns/default/sa/svc1-sa"] 
+```       
+ That is, 
+
+```yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+ name: svc2-az
+spec:
+ selector:
+   matchLabels:
+     app: svc2
+ rules:
+ - from:
+   - source:
+       principals: ["cluster.local/ns/default/sa/svc1-sa"] 
+   to:
+   - operation:
+       methods: ["GET"]
+   when:
+   - key: request.auth.claims[iss]
+     values: ["sa-istio@mineral-minutia-820.iam.gserviceaccount.com"]
+   - key: request.auth.claims[aud]
+     values: ["https://svc2.example.com"]
+   - key: request.auth.claims[groups]
+     values: ["group1", "group2"]
+   - key: request.auth.claims[sub]
+     values: ["bob"]
+```
+
+Now, if bob tries to access `svc2` externally even with a correct token, he will see
+
+```bash
+$ curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB"  -w "%{http_code}\n" https://$GATEWAY_IP/version
+  RBAC: access denied
+```
+
+Let try to exc **into** a pod where `svc1` is running and access `svc2`:
 
 ```bash
 $ kubectl get po
 NAME                    READY   STATUS    RESTARTS   AGE
-svc1-6d8b6ff4d7-l5st9   2/2     Running   0          99m
-svc2-647ff496bf-dv4ps   2/2     Running   0          99m
+svc1-7489fbf8d4-8tffm   2/2     Running   0          92m
+svc2-7b4d7566cb-jlmlm   2/2     Running   0          92m
 
-# exec to a pod in svc1:
-kubectl exec -ti svc1-6d8b6ff4d7-l5st9 -c myapp-container -- /bin/bash
+
+$ kubectl exec -ti svc1-7489fbf8d4-8tffm -- /bin/bash
 ```
 
-Withink the shell, attempt to access `svc2` even with an explicit service accoun token
-
-```
-root@svc1-6d8b6ff4d7-l5st9:/# curl -v http://svc2.default.svc.cluster.local:8080/version
-
-root@svc1-6d8b6ff4d7-l5st9:/# curl -v -H "Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`" http://svc2.default.svc.cluster.local:8080/version
-
-Origin authentication failed.
-```
-
-Note, though we already setup `svc1`'s service account in a role to access `svc2`, the k8s service account's identity isn't getting used or provided.  This means our Authentication Policy for `svc2` is getting applied prior to Transport Authentication (eg the error is _Origin authentication failed._)
-
-At the moment, i do not know how to use **BOTH** Transport and End-User authentication for the _same_ service...
-
-The [Principal Binding Section](https://istio.io/docs/concepts/security/#principal-binding) would be something i could look at later:
-
->> The principal binding key-value pair defines the principal authentication for a policy. By default, Istio uses the authentication configured in the peers: section. If no authentication is configured in the peers: section, Istio leaves the authentication unset. Policy writers can overwrite this behavior with the USE_ORIGIN value. This value configures Istio to use the origin’s authentication as the principal authentication instead. In future, we will support conditional binding, for example: USE_PEER when peer is X, otherwise USE_ORIGIN.
-
-
-So far, there is one workaround i can think of:
-
-* Allow the Authentication step to be optional and use RBAC to deny.
-
-You can do this in two ways: set 1) [originIsOptional: true](https://istio.io/docs/reference/config/istio.authentication.v1alpha1/#Policy) or 2) set a an exclusion path for the `Policy`.
-
-> originIsOptional: Set this flag to true to accept request (for origin authentication perspective), even when none of the origin authentication methods defined above satisfied. Typically, this is used to delay the rejection decision to next layer (e.g authorization).
-
-
-```yaml
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: svc2-policy
-spec:
-  targets:
-  - name: svc2
-  peers:
-  - mtls: {}
-  originIsOptional: true         <<<<<<<<<<<<<<  1. make optional
-  origins:
-  - jwt:
-      issuer: "issuer@project.iam.gserviceaccount.com"
-      audiences:
-      - "https://foo.bar"
-      triggerRules:
-      - excludedPaths:  
-        - exact: /varz             <<<<<<<<<<<<<<<<<< 2. BYPASS Policy per endpoint
-      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com"  
-  principalBinding: USE_ORIGIN
-```
-
-The exclusion ploicy (2) should already be in effect (you can verify by running `kubectl describe policy/svc2-policy`).  Lets check if we can access `/version` endpoint externally as both Alice and Bob
+First try to access the backend service:
 
 ```bash
-# /version
-## Bob
-curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB" -o /dev/null -w "%{http_code}\n" https://$GATEWAY_IP/version
-200
-
-# /varz
-## Bob
-curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB"  -w "%{http_code}\n" https://$GATEWAY_IP/varz
+curl -s -w "%{http_code}\n"  http://svc2.default.svc.cluster.local:8080/version
 403
 RBAC: access denied
 ```
 
->> We are seeing `RBAC: access denied` denied because we have RBAC enabled and the JWT-based end-user token is not propagated as any identity (`principalBinding: USE_ORIGIN`)
-
-Ok, lets try to access the `svc2` from within `svc1`.  To do this, exec to the pod as showsn above, then attempt to get svc2'1 `/version` and `/varz` endpoints
-
+You'll see a 403 because although the request was inbound from `svc1` which is using PEER authentication, we did not add Bob's JWT token.  So set an env-var and execute the request again:
 ```
-root@svc1-6d8b6ff4d7-l5st9:/# curl -s -o /dev/null -w "%{http_code}\n"  http://svc2.default.svc.cluster.local:8080/version
-Origin authentication failed
-401
+root@svc1-7489fbf8d4-8tffm:/# export TOKEN_BOB=eyJhbGciOi...
 
-root@svc1-6d8b6ff4d7-l5st9:/# curl -s -o /dev/null -w "%{http_code}\n"  http://svc2.default.svc.cluster.local:8080/varz
+root@svc1-7489fbf8d4-8tffm:/# curl -s -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN_BOB" http://svc2.default.svc.cluster.local:8080/version
 200
 ```
 
-Ok, so the `/varz` endpoint worked because we have a `ServieRoleBinding` enabled that allows it within the `service-roles.yaml` file:
+You are now in!
+
+This is a bit silly since we needed to use the JWT token for bob for just service to serice traffic.
+
+You dont' ofcourse need to do that: just edit the `AuthorizationPolicy` for `svc2` and comment out
 
 ```yaml
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRoleBinding
-metadata:
-  name: bind-svc1-viewer-sa
-  namespace: default
-spec:
-  subjects:
-  - user: cluster.local/ns/default/sa/svc1-sa
-  roleRef:
-    kind: ServiceRole
-    name: svc2-viewer
-```  
+   when:
+   - key: request.auth.claims[iss]
+     values: ["sa-istio@mineral-minutia-820.iam.gserviceaccount.com"]
+   - key: request.auth.claims[aud]
+     values: ["https://svc2.example.com"]
+   - key: request.auth.claims[groups]
+     values: ["group1", "group2"]
+   - key: request.auth.claims[sub]
+     values: ["bob"]
+```
+Bob can't access `svc2` from the outside but `svc1` can access `svc2`
 
-To verify this is the case, delete it:
+
 
 ```bash
-kubectl delete  ServiceRoleBinding/bind-svc1-viewer-sa
-```
-
-...after maybe 30 seconds, try to access `svc2` from `svc1`:
-
-```
-root@svc1-6d8b6ff4d7-l5st9:/# curl -s  -w "%{http_code}\n"  http://svc2.default.svc.cluster.local:8080/varz
+# from external -> svc1
+curl -sk -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_BOB"  -w "%{http_code}\n" https://$GATEWAY_IP/version
 403
 RBAC: access denied
+
+# from svc1->svc
+curl -s -w "%{http_code}\n"  http://svc2.default.svc.cluster.local:8080/version
+200
 ```
-
-(to reeapply the policy specifically..)
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: "rbac.istio.io/v1alpha1"
-kind: ServiceRoleBinding
-metadata:
-  name: bind-svc1-viewer-sa
-  namespace: default
-spec:
-  subjects:
-  - user: cluster.local/ns/default/sa/svc1-sa
-  roleRef:
-    kind: ServiceRole
-    name: svc2-viewer
-EOF
-```
-
-In summary, 
-* user Alice can access `svc1`
-* Bob can access `svc2`
-* Bob cannot access `svc2`'s `/varz` endopint
-* `svc1` can only access `svc2`'s `/varz` endopint
-
 
 ### External Authorization HTTPFilter
 
@@ -2215,6 +1891,7 @@ spec:
 
 To use this type of authorization check, you will need to run a serivce somewhere (either within istio or external to istio).  The following runs the serivce external to istio:
 
+- [Istio External Authorization Server](https://github.com/salrashid123/istio_external_authorization_server)
 - [Envoy External Authorization server (envoy.ext_authz) HelloWorld](https://github.com/salrashid123/envoy_external_authz)
 
 First spin up a GCP VM that has an external IP, install golang there and startup the `authz` server in the git repo provided.  You'll also need to open up port `:50051` to that VM.  

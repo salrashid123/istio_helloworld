@@ -1,10 +1,10 @@
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: my-gateway-ilb
 spec:
   selector:
-    istio: ilbgateway
+    istio: istio-ilbgateway
   servers:
   - port:
       number: 443

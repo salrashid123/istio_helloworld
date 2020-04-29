@@ -1,58 +1,124 @@
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
-metadata:
-  name: igpolicy
-  namespace: istio-system
-spec:
-  targets:
-  - name: istio-ingressgateway
-    ports:
-    - number: 80
-    - number: 443
-  origins:
-  - jwt:
-      issuer: "issuer@project.iam.gserviceaccount.com"
-      audiences:
-      - "https://foo.bar"
-      - "https://svc1.example.com"
-      - "https://svc2.example.com"
-      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
-  principalBinding: USE_ORIGIN
 ---
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
 metadata:
-  name: svc1-policy
+ name: deny-all-authz-ns
 spec:
-  targets:
-  - name: svc1
-  peers:
-  - mtls: {}  
-  origins:
-  - jwt:
-      issuer: "issuer@project.iam.gserviceaccount.com"
-      audiences:
-      - "https://svc1.example.com"
-      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com"         
-  principalBinding: USE_ORIGIN
+  {} 
 ---
-apiVersion: authentication.istio.io/v1alpha1
-kind: Policy
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
 metadata:
-  name: svc2-policy
+  name: default-peerauth
+  namespace: default
 spec:
-  targets:
-  - name: svc2
-  peers:
-  - mtls: {}
-  # originIsOptional: true      
-  origins:
-  - jwt:
-      issuer: "issuer@project.iam.gserviceaccount.com"
-      audiences:
-      - "https://svc2.example.com"
-      jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/issuer@project.iam.gserviceaccount.com" 
-      triggerRules:
-      - excludedPaths:
-        - exact: /varz
-  principalBinding: USE_ORIGIN
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+ name: igaupolicy
+ namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+  jwtRules:
+  - issuer: "$SA_EMAIL"
+    audiences:
+    - "https://foo.bar"
+    - "https://svc1.example.com"
+    - "https://svc2.example.com"       
+    jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/$SA_EMAIL" 
+    forwardOriginalToken: true
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+ name: igazpolicy
+ namespace: istio-system
+spec:
+ selector:
+   matchLabels:
+     app: istio-ingressgateway
+ rules:
+ - to:
+   - operation:
+       methods: ["GET"]
+   when:
+   - key: request.auth.claims[iss]
+     values: ["$SA_EMAIL"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+ name: svc1-au
+spec:
+  selector:
+    matchLabels:
+      app: svc1
+  jwtRules:
+  - issuer: "$SA_EMAIL"
+    audiences:
+    - "https://svc1.example.com"
+    jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/$SA_EMAIL" 
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+ name: svc1-az
+spec:
+ action: ALLOW    
+ selector:
+   matchLabels:
+     app: svc1
+ rules:
+ - to:
+   - operation:
+       methods: ["GET"]
+   when:
+   - key: request.auth.claims[iss]
+     values: ["$SA_EMAIL"]
+   - key: request.auth.claims[aud]
+     values: ["https://svc1.example.com"]       
+---
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+ name: svc2-au
+spec:
+  selector:
+    matchLabels:
+      app: svc2
+  jwtRules:
+  - issuer: "$SA_EMAIL"
+    audiences:
+    - "https://svc2.example.com"
+    jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/$SA_EMAIL" 
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+ name: svc2-az
+spec:
+ action: ALLOW  
+ selector:
+   matchLabels:
+     app: svc2
+ rules:
+ - to:
+   - operation:
+       methods: ["GET"]  
+  #  from:
+  #  - source:
+  #      principals: ["cluster.local/ns/default/sa/svc1-sa"] 
+   when:
+   - key: request.auth.claims[iss]
+     values: ["$SA_EMAIL"]
+   - key: request.auth.claims[aud]
+     values: ["https://svc2.example.com"]
+   - key: request.auth.claims[groups]
+     values: ["group1", "group2"]
+   - key: request.auth.claims[sub]
+     values: ["bob"]

@@ -64,7 +64,7 @@ def _urlsafe_b64decode(b64string):
       
 if __name__ == '__main__':
 
-    cred = service_account.Credentials.from_service_account_file('service_account.json')
+    cred = service_account.Credentials.from_service_account_file('svc_account.json')
     fbtok = getToken("alice", "https://svc1.example.com", {}) 
     print "TOKEN_ALICE: " + fbtok
 
