@@ -36,7 +36,7 @@ spec:
   tls:
   - match:
     - port: 443
-      sni_hosts:
+      sniHosts:
       - www.google.com
     route:
     - destination:

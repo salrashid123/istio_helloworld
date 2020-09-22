@@ -34,11 +34,14 @@ kind: ServiceAccount
 metadata:
   name: svc2-sa
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: svc1
 spec:
+  selector:
+    matchLabels:
+      app: svc1   
   replicas: 1
   template:
     metadata:
@@ -53,11 +56,14 @@ spec:
         ports:
         - containerPort: 8080            
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: svc2
 spec:
+  selector:
+    matchLabels:
+      app: svc2  
   replicas: 1
   template:
     metadata:

@@ -36,15 +36,6 @@ spec:
   host: istio-egressgateway.istio-system.svc.cluster.local
   subsets:
   - name: yahoo
-    trafficPolicy:
-      loadBalancer:
-        simple: ROUND_ROBIN
-      portLevelSettings:
-      - port:
-          number: 443
-        tls:
-          mode: ISTIO_MUTUAL
-          sni: www.yahoo.com
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
@@ -61,7 +52,7 @@ spec:
     - gateways:
       - mesh
       port: 443
-      sni_hosts:
+      sniHosts:
       - www.yahoo.com
     route:
     - destination:
@@ -74,7 +65,7 @@ spec:
     - gateways:
       - istio-egressgateway
       port: 443
-      sni_hosts:
+      sniHosts:
       - www.yahoo.com      
     route:
     - destination:
