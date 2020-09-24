@@ -1939,23 +1939,36 @@ kind: EnvoyFilter
 metadata:
   name: ext-authz-filter
 spec:
-  workloadLabels:
-    app: myapp
-    version: v1
-  filters:
-  - listenerMatch:
-      portNumber: 8080
-      listenerType: SIDECAR_INBOUND
-    filterName: envoy.ext_authz
-    filterType: HTTP
-    filterConfig:
-      grpc_service:
-        google_grpc:
-           target_uri: "ip_of_your_authz_server:50051"
-           stat_prefix: "ext_authz"
+  workloadSelector:
+    labels:
+      app: myapp
+      version: v1
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        proxy:
+          proxyVersion: ^1\.7.*      
+        context: SIDECAR_INBOUND
+        listener:
+          portNumber: 8080
+          filterChain:
+            filter:
+              name: "envoy.http_connection_manager"
+              subFilter:
+                name: "envoy.router"
+      patch:
+        operation: INSERT_BEFORE
+        value:
+         name: envoy.filters.http.ext_authz
+         typed_config:
+           "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+           grpc_service:
+            google_grpc:
+              target_uri: "your_grpc_server_ip:50051"
+              stat_prefix: "ext_authz"               
 ```
 
-To use this type of authorization check, you will need to run a serivce somewhere (either within istio or external to istio).  The following runs the serivce external to istio:
+To use this type of authorization check, you will need to run a serivce somewhere (either within istio (*strongly* preferred for latency) or external to istio).  The following runs the serivce external to istio:
 
 - [Istio External Authorization Server](https://github.com/salrashid123/istio_external_authorization_server)
 - [Envoy External Authorization server (envoy.ext_authz) HelloWorld](https://github.com/salrashid123/envoy_external_authz)
