@@ -11,6 +11,7 @@ i understand something is to rewrite sections and only those sections from the g
 
 ## Istio version used
 
+* 12/21/20: Istio 1.8.0
 * 09/22/20: Istio 1.7.2
 * 04/28/20: Istio 1.5.2
 * 10/12/19: Istio 1.3.2
@@ -99,7 +100,7 @@ kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-ad
 
 kubectl create ns istio-system
 
-export ISTIO_VERSION=1.7.2
+export ISTIO_VERSION=1.8.0
 
 wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux-amd64.tar.gz
 tar xvf istio-$ISTIO_VERSION-linux-amd64.tar.gz
@@ -109,7 +110,6 @@ export PATH=`pwd`/istio-$ISTIO_VERSION/bin:$PATH
 
 
 istioctl install --set profile=demo \
- --set values.global.controlPlaneSecurityEnabled=true  \
  --set meshConfig.enableAutoMtls=true  \
  --set values.gateways.istio-ingressgateway.runAsRoot=true \
  --set meshConfig.outboundTrafficPolicy.mode=REGISTRY_ONLY  \
@@ -118,12 +118,10 @@ istioctl install --set profile=demo \
 $ istioctl profile dump --config-path components.ingressGateways demo
 $ istioctl profile dump --config-path values.gateways.istio-ingressgateway demo
 
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.7/samples/addons/prometheus.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.7/samples/addons/grafana.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.7/samples/addons/jaeger.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.7/samples/addons/kiali.yaml
-
-
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.8/samples/addons/prometheus.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.8/samples/addons/grafana.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.8/samples/addons/jaeger.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.8/samples/addons/kiali.yaml
 
 kubectl label namespace default istio-injection=enabled
 ```
