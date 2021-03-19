@@ -9,7 +9,7 @@ spec:
     match:
       context: SIDECAR_INBOUND
       proxy:
-        proxyVersion: '1\.7.*'      
+        proxyVersion: '1\.9.*'      
       listener:
         filterChain:
           filter:

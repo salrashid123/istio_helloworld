@@ -48,7 +48,7 @@ spec:
        methods: ["GET"]
    when:
    - key: request.auth.claims[iss]
-     values: ["$SA_EMAIL"]
+     values: ["sa-istio@mineral-minutia-820.iam.gserviceaccount.com"]
 ---
 apiVersion: security.istio.io/v1beta1
 kind: RequestAuthentication
@@ -118,7 +118,7 @@ spec:
      values: ["$SA_EMAIL"]
    - key: request.auth.claims[aud]
      values: ["https://svc2.example.com"]
-   - key: request.auth.claims[groups]
-     values: ["group1", "group2"]
+  # - key: request.auth.claims[groups]
+  #   values: ["group1", "group2"]
    - key: request.auth.claims[sub]
      values: ["bob"]

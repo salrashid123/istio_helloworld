@@ -11,6 +11,7 @@ i understand something is to rewrite sections and only those sections from the g
 
 ## Istio version used
 
+* 03/19/21: Istio 1.9.1
 * 12/21/20: Istio 1.8.0
 * 09/22/20: Istio 1.7.2
 * 04/28/20: Istio 1.5.2
@@ -100,13 +101,12 @@ kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-ad
 
 kubectl create ns istio-system
 
-export ISTIO_VERSION=1.8.0
+export ISTIO_VERSION=1.9.1
 
-wget https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux-amd64.tar.gz
-tar xvf istio-$ISTIO_VERSION-linux-amd64.tar.gz
-rm istio-$ISTIO_VERSION-linux-amd64.tar.gz
+wget -O /tmp/istio-$ISTIO_VERSION-linux-amd64.tar.gz https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux-amd64.tar.gz
+tar xvf /tmp/istio-$ISTIO_VERSION-linux-amd64.tar.gz  -C /tmp/
 
-export PATH=`pwd`/istio-$ISTIO_VERSION/bin:$PATH
+export PATH=/tmp/istio-$ISTIO_VERSION/bin:$PATH
 
 
 istioctl install --set profile=demo \
@@ -118,15 +118,14 @@ istioctl install --set profile=demo \
 $ istioctl profile dump --config-path components.ingressGateways demo
 $ istioctl profile dump --config-path values.gateways.istio-ingressgateway demo
 
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.8/samples/addons/prometheus.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.8/samples/addons/grafana.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.8/samples/addons/jaeger.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.8/samples/addons/kiali.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.9/samples/addons/prometheus.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.9/samples/addons/grafana.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.9/samples/addons/jaeger.yaml
+sleep 10
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.9/samples/addons/kiali.yaml
 
 kubectl label namespace default istio-injection=enabled
 ```
-
-If you see an error: `no matches for kind "MonitoringDashboard" in version "monitoring.kiali.io/v1alpha1"`, run the commands again
 
 Wait maybe 2 to 3 minutes and make sure all the Deployments are live:
 
@@ -1373,7 +1372,7 @@ spec:
     match:
       context: SIDECAR_INBOUND
       proxy:
-        proxyVersion: '1\.7.*'      
+        proxyVersion: '1\.9.*'      
       listener:
         filterChain:
           filter:
@@ -1520,11 +1519,14 @@ export PROJECT_ID=`gcloud config get-value core/project`
 gcloud iam service-accounts create sa-istio --display-name "JWT issuer for Istio helloworld"
 export SA_EMAIL=sa-istio@$PROJECT_ID.iam.gserviceaccount.com
 gcloud iam service-accounts keys create svc_account.json --iam-account=$SA_EMAIL
-echo SA_EMAIL
+echo $SA_EMAIL
 ```
 
 Edit `auth-policy.yaml` file and replace the values where the service account email `$SA_EMAIL` is specified
 
+```bash
+ envsubst < "auth-policy.yaml.tmpl" > "auth-policy.yaml"
+```
 
 After you apply the policy
 
@@ -1573,8 +1575,10 @@ The policy above looks for a specific issuer and audience value.  THe `jwksUri` 
 
 
 ```bash
-pip install -r requirements.txt
-python main.py
+virtualenv env
+source env/bin/activate
+pip3 install -r requirements.txt
+python3 main.py
 ```
 
 The command line utility will generate two tokens with different specifications.  For Alice, 
@@ -1636,7 +1640,7 @@ The request should now pass validation and you're in.  What we just did is have 
 
 What that means is if you use Alice's token to access `svc2`, you'll see an authentication validation error because that token doesn't have `"https://svc2.example.com"` in the audience
 
-```
+```bash
 $ curl -k -H "Host: svc2.example.com" -H "Authorization: Bearer $TOKEN_ALICE" -w "\n" https://$GATEWAY_IP/version
    Audiences in Jwt are not allowed
 ```
