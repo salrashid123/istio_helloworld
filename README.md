@@ -11,6 +11,7 @@ i understand something is to rewrite sections and only those sections from the g
 
 ## Istio version used
 
+* 09/05/22: Istio 1.15.0
 * 03/19/21: Istio 1.9.1
 * 12/21/20: Istio 1.8.0
 * 09/22/20: Istio 1.7.2
@@ -92,8 +93,7 @@ Note, the following cluster is setup with a  [aliasIPs](https://cloud.google.com
 We will be installing istio with [istioctl](https://istio.io/docs/setup/install/istioctl/)
 
 ```bash
-gcloud container  clusters create cluster-1 --machine-type "n1-standard-2" --zone us-central1-a  --num-nodes 4 --enable-ip-alias \
-  --cluster-version "1.18" -q
+gcloud container  clusters create cluster-1 --machine-type "n1-standard-2" --zone us-central1-a  --num-nodes 4 --enable-ip-alias -q
 
 gcloud container clusters get-credentials cluster-1 --zone us-central1-a
 
@@ -101,7 +101,8 @@ kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-ad
 
 kubectl create ns istio-system
 
-export ISTIO_VERSION=1.9.1
+export ISTIO_VERSION=1.15.0
+export ISTIO_VERSION_MINOR=1.15
 
 wget -O /tmp/istio-$ISTIO_VERSION-linux-amd64.tar.gz https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux-amd64.tar.gz
 tar xvf /tmp/istio-$ISTIO_VERSION-linux-amd64.tar.gz  -C /tmp/
@@ -118,11 +119,11 @@ istioctl install --set profile=demo \
 $ istioctl profile dump --config-path components.ingressGateways demo
 $ istioctl profile dump --config-path values.gateways.istio-ingressgateway demo
 
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.9/samples/addons/prometheus.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.9/samples/addons/grafana.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.9/samples/addons/jaeger.yaml
-sleep 10
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.9/samples/addons/kiali.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-$ISTIO_VERSION_MINOR/samples/addons/prometheus.yaml
+sleep 20
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-$ISTIO_VERSION_MINOR/samples/addons/kiali.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-$ISTIO_VERSION_MINOR/samples/addons/grafana.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-$ISTIO_VERSION_MINOR/samples/addons/jaeger.yaml
 
 kubectl label namespace default istio-injection=enabled
 ```

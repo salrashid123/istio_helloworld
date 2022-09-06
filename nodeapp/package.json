@@ -9,7 +9,7 @@
     "debug": "~2.6.9",
     "dns": "0.2.2",
     "express": "^4.17.1",
-    "log4js": "^0.6.27",
+    "log4js": "^6.4.0",
     "morgan": "^1.9.1",
     "request-promise": "4.2.2",
     "winston": "*"
