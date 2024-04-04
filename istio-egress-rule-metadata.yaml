@@ -1,4 +1,4 @@
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: nnetworking.istio.io/v1beta1
 kind: ServiceEntry
 metadata:
   name: metadata-ext

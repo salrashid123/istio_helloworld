@@ -25,12 +25,12 @@ spec:
     matchLabels:
       app: istio-ingressgateway
   jwtRules:
-  - issuer: "$SA_EMAIL"
+  - issuer: "https://idp-on-cloud-run-3kdezruzua-uc.a.run.app"
     audiences:
     - "https://foo.bar"
     - "https://svc1.example.com"
     - "https://svc2.example.com"       
-    jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/$SA_EMAIL" 
+    jwksUri: "https://idp-on-cloud-run-3kdezruzua-uc.a.run.app/certs" 
     forwardOriginalToken: true
 ---
 apiVersion: security.istio.io/v1beta1
@@ -48,7 +48,7 @@ spec:
        methods: ["GET"]
    when:
    - key: request.auth.claims[iss]
-     values: ["sa-istio@mineral-minutia-820.iam.gserviceaccount.com"]
+     values: ["https://idp-on-cloud-run-3kdezruzua-uc.a.run.app"]
 ---
 apiVersion: security.istio.io/v1beta1
 kind: RequestAuthentication
@@ -59,10 +59,10 @@ spec:
     matchLabels:
       app: svc1
   jwtRules:
-  - issuer: "$SA_EMAIL"
+  - issuer: "https://idp-on-cloud-run-3kdezruzua-uc.a.run.app"
     audiences:
     - "https://svc1.example.com"
-    jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/$SA_EMAIL" 
+    jwksUri: "https://idp-on-cloud-run-3kdezruzua-uc.a.run.app/certs" 
 ---
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
@@ -79,7 +79,7 @@ spec:
        methods: ["GET"]
    when:
    - key: request.auth.claims[iss]
-     values: ["$SA_EMAIL"]
+     values: ["https://idp-on-cloud-run-3kdezruzua-uc.a.run.app"]
    - key: request.auth.claims[aud]
      values: ["https://svc1.example.com"]       
 ---
@@ -92,10 +92,10 @@ spec:
     matchLabels:
       app: svc2
   jwtRules:
-  - issuer: "$SA_EMAIL"
+  - issuer: "https://idp-on-cloud-run-3kdezruzua-uc.a.run.app"
     audiences:
     - "https://svc2.example.com"
-    jwksUri: "https://www.googleapis.com/service_accounts/v1/jwk/$SA_EMAIL" 
+    jwksUri: "https://idp-on-cloud-run-3kdezruzua-uc.a.run.app/certs" 
 ---
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
@@ -115,7 +115,7 @@ spec:
   #      principals: ["cluster.local/ns/default/sa/svc1-sa"] 
    when:
    - key: request.auth.claims[iss]
-     values: ["$SA_EMAIL"]
+     values: ["https://idp-on-cloud-run-3kdezruzua-uc.a.run.app"]
    - key: request.auth.claims[aud]
      values: ["https://svc2.example.com"]
   # - key: request.auth.claims[groups]

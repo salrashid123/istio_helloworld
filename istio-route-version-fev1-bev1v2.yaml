@@ -1,4 +1,4 @@
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: myapp-virtualservice
@@ -26,7 +26,7 @@ spec:
         subset: v2
       weight: 80
 ---
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
   name: myapp-destination
@@ -45,7 +45,7 @@ spec:
     labels:
       version: v2  
 ---
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: be-virtualservice
@@ -65,7 +65,7 @@ spec:
         subset: v2
       weight: 50        
 ---
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
   name: be-destination

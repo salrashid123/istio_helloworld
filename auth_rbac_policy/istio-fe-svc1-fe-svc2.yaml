@@ -1,4 +1,4 @@
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: svc1-virtualservice
@@ -13,7 +13,7 @@ spec:
     - destination:
         host: svc1      
 ---
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
   name: svc1-destination
@@ -25,7 +25,7 @@ spec:
     loadBalancer:
       simple: ROUND_ROBIN      
 ---
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: svc2-virtualservice
@@ -40,7 +40,7 @@ spec:
     - destination:
         host: svc2    
 ---
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
   name: svc2-destination
