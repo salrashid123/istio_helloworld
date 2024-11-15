@@ -11,6 +11,7 @@ i understand something is to rewrite sections and only those sections from the g
 
 ## Istio version used
 
+* 11/14/24: Istio 1.24.0
 * 04/03/24: Istio 1.21.0
 * 09/05/22: Istio 1.15.0
 * 03/19/21: Istio 1.9.1
@@ -60,7 +61,6 @@ The endpoints on this app are as such:
 - ```/requestz```:  Makes an HTTP fetch for several external URLs (used to show egress rules) ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L120))
 - ```/headerz```:  Displays inbound headers
  ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L115))
-- ```/metadata```: Access the GCP MetadataServer using hostname and link-local IP address ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L125))
 - ```/remote```: Access `/backend` while deployed in a remote istio cluster  ([source](https://github.com/salrashid123/istio_helloworld/blob/master/nodeapp/app.js#L145))
 
 I build and uploaded this app to dockerhub at
@@ -70,7 +70,7 @@ docker.io/salrashid123/istioinit:1
 docker.io/salrashid123/istioinit:2
 ```
 
-(basically, they're both the same application but each has an environment variable that signifies which 'verison; they represent.  The version information for each image is returned by the `/version` endpoint)
+(basically, they're both the same application but each has an environment variable that signifies which 'version; they represent.  The version information for each image is returned by the `/version` endpoint)
 
 You're also free to build and push these images directly:
 
@@ -88,23 +88,41 @@ To give you a sense of the differences between a regular GKE specification yaml 
 
 ## Lets get started
 
-### Create GKE Cluster and Bootstrap Istio
+### Create Minikube or GKE Cluster and Bootstrap Istio
 
-Note, the following cluster is setup with a  [aliasIPs](https://cloud.google.com/kubernetes-engine/docs/how-to/alias-ips) (`--enable-ip-alias` )
+Use Minikube locally..its easier but you can't really test the internal loadbalancer excercise.
+
+note, for GKE, the following cluster is setup with a  [aliasIPs](https://cloud.google.com/kubernetes-engine/docs/how-to/alias-ips) (`--enable-ip-alias` )
 
 We will be installing istio with [istioctl](https://istio.io/docs/setup/install/istioctl/)
 
 ```bash
-gcloud container  clusters create cluster-1 --machine-type "n1-standard-2" --zone us-central1-a  --num-nodes 3 --enable-ip-alias -q
+minikube start --driver=kvm2  --cpus=4 --kubernetes-version=v1.28 --host-only-cidr 192.168.39.1/24
 
-gcloud container clusters get-credentials cluster-1 --zone us-central1-a
+minikube addons enable metallb
 
-kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
+## get the IP, for me it was the following
+$ minikube ip
+192.168.39.1
+
+## setup a loadbalancer metallb, enter the ip range shown below
+minikube addons configure metallb
+# -- Enter Load Balancer Start IP: 192.168.39.104
+# -- Enter Load Balancer End IP: 192.168.39.110
+
+### in a new window
+minikube dashboard
+
+
+## for GKE
+# gcloud container  clusters create cluster-1 --machine-type "n2-standard-4" --zone us-central1-a  --num-nodes 4 --enable-ip-alias -q
+# gcloud container clusters get-credentials cluster-1 --zone us-central1-a
+# kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
 
 kubectl create ns istio-system
 
-export ISTIO_VERSION=1.21.0
-export ISTIO_VERSION_MINOR=1.21
+export ISTIO_VERSION=1.24.0
+export ISTIO_VERSION_MINOR=1.24
 
 wget -P /tmp/ https://github.com/istio/istio/releases/download/$ISTIO_VERSION/istio-$ISTIO_VERSION-linux-amd64.tar.gz
 tar xvf /tmp/istio-$ISTIO_VERSION-linux-amd64.tar.gz -C /tmp/
@@ -115,8 +133,11 @@ export PATH=/tmp/istio-$ISTIO_VERSION/bin:$PATH
 istioctl install --set profile=demo \
  --set meshConfig.enableAutoMtls=true  \
  --set values.gateways.istio-ingressgateway.runAsRoot=true \
- --set meshConfig.outboundTrafficPolicy.mode=REGISTRY_ONLY  \
- -f overlay-istio-gateway.yaml
+ --set meshConfig.outboundTrafficPolicy.mode=REGISTRY_ONLY \
+ --set meshConfig.defaultConfig.gatewayTopology.forwardClientCertDetails=SANITIZE_SET
+
+ ### GKE https://github.com/GoogleCloudPlatform/istio-samples/tree/master/internal-load-balancer 
+ ### add to istioctl command above -f overlay-istio-gateway.yaml
 
 $ istioctl profile dump --config-path components.ingressGateways demo
 $ istioctl profile dump --config-path values.gateways.istio-ingressgateway demo
@@ -139,43 +160,38 @@ Wait maybe 2 to 3 minutes and make sure all the Deployments are live:
 Verify this step by making sure all the ```Deployments``` are Available.
 
 ```bash
-$ kubectl get no,po,rc,svc,ing,deployment -n istio-system 
-NAME                                            STATUS   ROLES    AGE   VERSION
-node/gke-cluster-1-default-pool-444c6b8c-0gx4   Ready    <none>   12m   v1.27.8-gke.1067004
-node/gke-cluster-1-default-pool-444c6b8c-p46d   Ready    <none>   12m   v1.27.8-gke.1067004
-node/gke-cluster-1-default-pool-444c6b8c-s5sk   Ready    <none>   12m   v1.27.8-gke.1067004
+$  kubectl get no,po,rc,svc,ing,deployment -n istio-system 
+NAME            STATUS   ROLES           AGE     VERSION
+node/minikube   Ready    control-plane   6m55s   v1.28.13
 
-NAME                                       READY   STATUS    RESTARTS   AGE
-pod/grafana-74b5fcd7b4-d8nbb               1/1     Running   0          32s
-pod/istio-egressgateway-5cdbc95b55-kz74s   1/1     Running   0          2m30s
-pod/istio-ilbgateway-5d6dd5449b-swz9q      1/1     Running   0          2m30s
-pod/istio-ingressgateway-fb484f94-f7hs6    1/1     Running   0          2m30s
-pod/istiod-b4f5579b4-jh7rs                 1/1     Running   0          2m37s
-pod/jaeger-db6bdfcb4-w8f2v                 1/1     Running   0          30s
-pod/kiali-58cf9b49d8-tbl2z                 1/1     Running   0          39s
-pod/prometheus-6775dd4ddb-qtfkb            2/2     Running   0          98s
+NAME                                        READY   STATUS    RESTARTS   AGE
+pod/grafana-6f7c87f789-8ptwb                1/1     Running   0          73s
+pod/istio-egressgateway-5686766648-wrpj9    1/1     Running   0          5m44s
+pod/istio-ingressgateway-7647b7fcfc-8hxhv   1/1     Running   0          5m43s
+pod/istiod-5fbd9b746d-h7mjc                 1/1     Running   0          6m4s
+pod/jaeger-6d58dbf847-492js                 1/1     Running   0          72s
+pod/kiali-7d57f454c-p7wcf                   1/1     Running   0          74s
+pod/prometheus-858b48bf9b-r82nk             2/2     Running   0          95s
 
-NAME                           TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                                          AGE
-service/grafana                ClusterIP      10.68.122.55    <none>          3000/TCP                                         32s
-service/istio-egressgateway    ClusterIP      10.68.124.26    <none>          80/TCP,443/TCP                                   2m30s
-service/istio-ilbgateway       LoadBalancer   10.68.126.221   10.128.15.211   443:31368/TCP                                    2m29s
-service/istio-ingressgateway   LoadBalancer   10.68.119.16    34.30.141.132   443:32556/TCP                                    2m29s
-service/istiod                 ClusterIP      10.68.118.70    <none>          15010/TCP,15012/TCP,443/TCP,15014/TCP            2m37s
-service/jaeger-collector       ClusterIP      10.68.118.32    <none>          14268/TCP,14250/TCP,9411/TCP,4317/TCP,4318/TCP   30s
-service/kiali                  ClusterIP      10.68.114.32    <none>          20001/TCP                                        39s
-service/prometheus             ClusterIP      10.68.123.245   <none>          9090/TCP                                         98s
-service/tracing                ClusterIP      10.68.121.223   <none>          80/TCP,16685/TCP                                 30s
-service/zipkin                 ClusterIP      10.68.116.193   <none>          9411/TCP                                         30s
+NAME                           TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)                                                                      AGE
+service/grafana                ClusterIP      10.107.88.114    <none>           3000/TCP                                                                     73s
+service/istio-egressgateway    ClusterIP      10.105.163.55    <none>           80/TCP,443/TCP                                                               5m44s
+service/istio-ingressgateway   LoadBalancer   10.101.132.30    192.168.39.104   15021:32216/TCP,80:32466/TCP,443:30304/TCP,31400:30523/TCP,15443:32664/TCP   5m44s
+service/istiod                 ClusterIP      10.110.231.171   <none>           15010/TCP,15012/TCP,443/TCP,15014/TCP                                        6m4s
+service/jaeger-collector       ClusterIP      10.104.227.189   <none>           14268/TCP,14250/TCP,9411/TCP,4317/TCP,4318/TCP                               72s
+service/kiali                  ClusterIP      10.108.203.182   <none>           20001/TCP,9090/TCP                                                           74s
+service/prometheus             ClusterIP      10.100.159.4     <none>           9090/TCP                                                                     95s
+service/tracing                ClusterIP      10.108.168.98    <none>           80/TCP,16685/TCP                                                             72s
+service/zipkin                 ClusterIP      10.96.117.238    <none>           9411/TCP                                                                     72s
 
 NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/grafana                1/1     1            1           32s
-deployment.apps/istio-egressgateway    1/1     1            1           2m31s
-deployment.apps/istio-ilbgateway       1/1     1            1           2m30s
-deployment.apps/istio-ingressgateway   1/1     1            1           2m30s
-deployment.apps/istiod                 1/1     1            1           2m37s
-deployment.apps/jaeger                 1/1     1            1           30s
-deployment.apps/kiali                  1/1     1            1           39s
-deployment.apps/prometheus             1/1     1            1           98s
+deployment.apps/grafana                1/1     1            1           73s
+deployment.apps/istio-egressgateway    1/1     1            1           5m44s
+deployment.apps/istio-ingressgateway   1/1     1            1           5m44s
+deployment.apps/istiod                 1/1     1            1           6m4s
+deployment.apps/jaeger                 1/1     1            1           72s
+deployment.apps/kiali                  1/1     1            1           74s
+deployment.apps/prometheus             1/1     1            1           95s
 ```
 
 
@@ -211,7 +227,7 @@ Open up a browser (4 tabs) and go to:
 
 ### Deploy the sample application
 
-The default ```all-istio.yaml``` runs:
+The default `all-istio.yaml` runs:
 
 - Ingress with SSL
 - Deployments:
@@ -234,7 +250,6 @@ Now enable the ingress gateway for both external and internal loadbalancer traff
 
 ```bash
 kubectl apply -f istio-ingress-gateway.yaml -f istio-ingress-ilbgateway.yaml 
-
 kubectl apply -f istio-fev1-bev1.yaml
 ```
 
@@ -245,31 +260,31 @@ Wait until the deployments complete:
 $ kubectl get po,deployments,svc,ing
 
 NAME                            READY   STATUS    RESTARTS   AGE
-pod/be-v1-5cc646694b-l7qsz      2/2     Running   0          37s
-pod/be-v2-d5988c4cd-2xwpx       2/2     Running   0          37s
-pod/myapp-v1-5d56985f68-4678g   2/2     Running   0          37s
-pod/myapp-v2-56c8b9b9c8-h6d2c   2/2     Running   0          37s
+pod/be-v1-965f5d5d4-2vb46       2/2     Running   0          85s
+pod/be-v2-859c86c476-vfpmp      2/2     Running   0          85s
+pod/myapp-v1-f65cf8f46-gvccx    2/2     Running   0          85s
+pod/myapp-v2-56f6698cd4-fjh2f   2/2     Running   0          85s
 
 NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/be-v1      1/1     1            1           37s
-deployment.apps/be-v2      1/1     1            1           37s
-deployment.apps/myapp-v1   1/1     1            1           38s
-deployment.apps/myapp-v2   1/1     1            1           37s
+deployment.apps/be-v1      1/1     1            1           85s
+deployment.apps/be-v2      1/1     1            1           85s
+deployment.apps/myapp-v1   1/1     1            1           85s
+deployment.apps/myapp-v2   1/1     1            1           85s
 
-NAME                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-service/be           ClusterIP   10.68.113.54    <none>        8080/TCP   37s
-service/kubernetes   ClusterIP   10.68.112.1     <none>        443/TCP    21m
-service/myapp        ClusterIP   10.68.118.161   <none>        8080/TCP   38s
+NAME                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+service/be           ClusterIP   10.101.138.254   <none>        8080/TCP   85s
+service/kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP    10m
+service/myapp        ClusterIP   10.101.150.123   <none>        8080/TCP   85s
 ```
 
 Notice that each pod has two containers:  one is from isto, the other is the applicaiton itself (this is because we have automatic sidecar injection enabled on the `default` namespace).
 
-Also note that in ```all-istio.yaml``` we did not define an ```Ingress``` object though we've defined a TLS secret with a very specific metadata name: ```istio-ingressgateway-certs```.  That is a special name for a secret that is used by Istio to setup its own ingress gateway:
+Also note that in `all-istio.yaml` we did not define an `Ingress` object though we've defined a TLS secret with a very specific metadata name: `istio-ingressgateway-certs`.  That is a special name for a secret that is used by Istio to setup its own ingress gateway:
 
 
 #### Ingress Gateway Secret in 1.0.0+
 
-Note the ```istio-ingress-gateway``` secret specifies the Ingress cert to use (the specific metadata name is special and is **required**)
+Note the `istio-ingress-gateway` secret specifies the Ingress cert to use (the specific metadata name is special and is **required**)
 
 ```yaml
 apiVersion: v1
@@ -290,23 +305,24 @@ export GATEWAY_IP=$(kubectl -n istio-system get service istio-ingressgateway -o 
 echo $GATEWAY_IP
 ```
 
+you may need to restart the ingress pod if the certs they used didn't pickup
+```bash
+INGRESS_POD_NAME=$(kubectl get po -n istio-system | grep ingressgateway\- | awk '{print$1}'); echo ${INGRESS_POD_NAME};
+kubectl delete po/$INGRESS_POD_NAME -n istio-system
+```
+
 ### Send Traffic
 
 This section shows basic user->frontend traffic and see the topology and telemetry in the Kiali and Grafana consoles:
 
 #### Frontend only
 
-So...lets send traffic with the ip to the ```/versions```  on the frontend
+So...lets send traffic with the ip to the `/versions`  on the frontend
 
 ```bash
 for i in {1..1000}; do curl  --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/version; sleep 1; done
 ```
 
-you may need to restart the ingress pod if the certs they used didn't pickup
-```bash
-INGRESS_POD_NAME=$(kubectl get po -n istio-system | grep ingressgateway\- | awk '{print$1}'); echo ${INGRESS_POD_NAME};
-kubectl delete po/$INGRESS_POD_NAME -n istio-system
-```
 
 You should see a sequence of 1's indicating the version of the frontend you just hit
 
@@ -329,12 +345,12 @@ and in grafana:
 
 Now the next step in th exercise:
 
-to send requests to ```user-->frontend--> backend```;  we'll use the  ```/hostz``` endpoint to do that.  Remember, the `/hostz` endpoint takes a frontend request, sends it to the backend which inturn echos back the podName the backend runs as.  The entire response is then returned to the user.  This is just a way to show the which backend host processed the requests.
+to send requests to `user-->frontend--> backend`;  we'll use the  `/hostz` endpoint to do that.  Remember, the `/hostz` endpoint takes a frontend request, sends it to the backend which inturn echos back the podName the backend runs as.  The entire response is then returned to the user.  This is just a way to show the which backend host processed the requests.
 
 (note i'm using  [jq](https://stedolan.github.io/jq/) utility to parse JSON)
 
 ```bash
-for i in {1..1000}; do --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
+for i in {1..1000}; do curl --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
 ```
 
 you should see output indicating traffic from the v1 backend verison: ```be-v1-*```.  Thats what we expect since our original rule sets defines only `fe:v1` and `be:v1` as valid targets.
@@ -342,11 +358,13 @@ you should see output indicating traffic from the v1 backend verison: ```be-v1-*
 ```bash
 $ for i in {1..1000}; do curl -s --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
 ```
 
 Note both Kiali and Grafana shows both frontend and backend service telemetry and traffic to ```be:v1```
@@ -364,15 +382,15 @@ This section details how to selectively send traffic to specific service version
 
 In this sequence,  we will setup a routecontrol to:
 
-1. Send all traffic to ```myapp:v1```.  
-2. traffic from ```myapp:v1``` can only go to ```be:v2```
+1. Send all traffic to `myapp:v1`.  
+2. traffic from `myapp:v1` can only go to `be:v2`
 
 Basically, this is a convoluted way to send traffic from `fe:v1`-> `be:v2` even if all services and versions are running.
 
-The yaml on ```istio-fev1-bev2.yaml``` would direct inbound traffic for ```myapp:v1``` to go to ```be:v2``` based on the ```sourceLabels:```.  The snippet for this config is:
+The yaml on `istio-fev1-bev2.yaml` would direct inbound traffic for `myapp:v1` to go to `be:v2` based on the `sourceLabels:`.  The snippet for this config is:
 
 ```yaml
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: be-virtualservice
@@ -392,7 +410,7 @@ spec:
         subset: v2
       weight: 100
 ---
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
   name: be-destination
@@ -418,23 +436,24 @@ So lets apply the config with kubectl:
 kubectl replace -f istio-fev1-bev2.yaml
 ```
 
-After sending traffic,  check which backend system was called by invoking ```/hostz``` endpoint on the frontend.
+After sending traffic,  check which backend system was called by invoking `/hostz` endpoint on the frontend.
 
-What the ```/hostz``` endpoint does is takes a users request to ```fe-*``` and targets any ```be-*``` that is valid.  Since we only have ```fe-v1``` instances running and the fact we setup a rule such that only traffic from `fe:v1` can go to `be:v2`, all the traffic outbound for ```be-*``` must terminate at a ```be-v2```:
+What the `/hostz` endpoint does is takes a users request to `fe-*` and targets any `be-*` that is valid.  Since we only have `fe-v1` instances running and the fact we setup a rule such that only traffic from `fe:v1` can go to `be:v2`, all the traffic outbound for `be-*` must terminate at a `be-v2`:
 
 ```bash
 $ for i in {1..1000}; do curl -s --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
 ```
 
 and on the frontend version is always one.
 ```bash
-for i in {1..100}; do curl--cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/version; sleep 1; done
+for i in {1..100}; do curl --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/version; sleep 1; done
 11111111111111111111111111111
 ```
 
@@ -464,14 +483,15 @@ and backend is responses comes from both be-v1 and be-v2
 ```bash
 $ for i in {1..1000}; do curl -s --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
-"pod: [be-v1-5cc646694b-l7qsz]    node: [gke-cluster-1-default-pool-444c6b8c-0gx4]"
-"pod: [be-v2-d5988c4cd-2xwpx]    node: [gke-cluster-1-default-pool-444c6b8c-p46d]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
 ```
 
 ![alt text](images/kiali_route_fev1v2_bev1v2.png)
@@ -488,7 +508,7 @@ Now lets setup a more selective route based on a specific path in the URI:
 
 ```yaml
 ---
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: myapp-virtualservice
@@ -541,7 +561,7 @@ You may have noted how the route to any other endpoint other than `/version` des
       weight: 80
 ```
 
-Anyway, now lets edit rule to  and change the prefix match to ```/xversion``` so the match *doesn't apply*.   What we expect is a request to http://gateway_ip/version will go to v1 and v2 (since the path rule did not match and the split is the fallback rule.
+Anyway, now lets edit rule to  and change the prefix match to `/xversion` so the match *doesn't apply*.   What we expect is a request to http://gateway_ip/version will go to v1 and v2 (since the path rule did not match and the split is the fallback rule.
 
 ```bash
 kubectl replace -f istio-route-version-fev1-bev1v2.yaml
@@ -554,7 +574,7 @@ for i in {1..1000}; do curl --cacert certs/root-ca.crt  --resolve istio.domain.c
 2121212222222222222221122212211222222222222222
 ```
 
-What you're seeing is ```myapp-v1``` now getting about `20%` of the traffic while ```myapp-v2``` gets `80%` because the previous rule doens't match.
+What you're seeing is `myapp-v1` now getting about `20%` of the traffic while `myapp-v2` gets `80%` because the previous rule doens't match.
 
 Undo that change `/xversion` --> `/version` and reapply to baseline:
 
@@ -568,7 +588,7 @@ You can use this traffic distribuion mechanism to run canary deployments between
 
 
 ```yaml
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: myapp-virtualservice
@@ -591,15 +611,15 @@ spec:
 ```
 ### Destination Rules
 
-Lets configure Destination rules such that all traffic from ```myapp-v1``` round-robins to both version of the backend.
+Lets configure Destination rules such that all traffic from `myapp-v1` round-robins to both version of the backend.
 
-First lets  force all gateway requests to go to ```v1``` only:
+First lets  force all gateway requests to go to `v1` only:
 
-on ```istio-fev1-bev1v2.yaml```:
+on `istio-fev1-bev1v2.yaml`:
 
 
 ```yaml
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: myapp-virtualservice
@@ -617,10 +637,10 @@ spec:
 ```
 
 
-And where the backend trffic is split between ```be-v1``` and ```be-v2``` with a ```ROUND_ROBIN```
+And where the backend trffic is split between `be-v1` and `be-v2` with a `ROUND_ROBIN`
 
 ```yaml
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
   name: be-destination
@@ -642,11 +662,11 @@ spec:
 
 After you apply the rule,
 
-```
+```bash
 kubectl replace -f istio-fev1-bev1v2.yaml
 ```
 
-you'll see frontend request all going to ```fe-v1```
+you'll see frontend request all going to `fe-v1`
 
 ```bash
 for i in {1..1000}; do curl --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/version; sleep 1; done
@@ -656,45 +676,54 @@ for i in {1..1000}; do curl --cacert certs/root-ca.crt  --resolve istio.domain.c
 with backend requests coming from _pretty much_ round robin
 
 ```bash
-$ for i in {1..1000}; do curl --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
+$ for i in {1..1000}; do curl -s --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
 ```
 
-Now change the ```istio-fev1-bev1v2.yaml```  to ```RANDOM``` and see response is from v1 and v2 random:
+Now change the `istio-fev1-bev1v2.yaml`  to `RANDOM` and see response is from v1 and v2 random:
+
 ```bash
-$ for i in {1..1000}; do curl --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
+$ for i in {1..1000}; do curl -s --cacert certs/root-ca.crt  --resolve istio.domain.com:443:$GATEWAY_IP  https://istio.domain.com/hostz | jq '.[0].body'; sleep 1; done
 
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
-"pod: [be-v1-58855cf854-t6rz9]    node: [gke-cluster-1-default-pool-7907ec5d-jrwq]"
-"pod: [be-v2-8475cfb896-wxt4z]    node: [gke-cluster-1-default-pool-7907ec5d-nxvx]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v2-859c86c476-vfpmp]    node: [minikube]"
+"pod: [be-v1-965f5d5d4-2vb46]    node: [minikube]"
 ```
 
-### Internal LoadBalancer
+### Internal LoadBalancer (GKE)
 
 The configuration here  sets up an internal loadbalancer on GCP to access an exposed istio service.
+
+THis only applies if you set up the `overlay-istio-gateway.yaml` operator during setup for GKE only
 
 The config settings that enabled this during istio setup was done by an operator and annotation:
 
@@ -703,7 +732,7 @@ Specifically, we created a new `ingressGateway` and set its annotation to
 
 
 ```yaml
-apiVersion: install.istio.io/v1alpha1
+apiVersion: install.istio.io/v1
 kind: IstioOperator
 spec:
   components:
@@ -731,7 +760,7 @@ spec:
 We did that duirng setup and later on, attached a Gateway to it which also exposed only `:443`
 
 ```yaml
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: Gateway
 metadata:
   name: my-gateway-ilb
@@ -755,7 +784,7 @@ spec:
 We also specified a `VirtualService` which selected these inbound gateways to the `myapp` service:  This configuration was defined when we applied `istio-fev1-bev1.yaml`:
 
 ```yaml
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: myapp-virtualservice
@@ -849,12 +878,12 @@ By default, istio blocks the cluster from making outbound requests.  There are s
 * Egress Gateway
 * Setting `global.proxy.includeIPRanges`
 
-Egress rules prevent outbound calls from the server except with whiteliste addresses.
+Egress rules prevent outbound calls from the server except with whitelisted addresses.
 
 For example:
 
 ```yaml
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1
 kind: ServiceEntry
 metadata:
   name: bbc-ext
@@ -868,7 +897,7 @@ spec:
   resolution: DNS
   location: MESH_EXTERNAL
 ---
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1
 kind: ServiceEntry
 metadata:
   name: google-ext
@@ -882,7 +911,7 @@ spec:
   resolution: DNS
   location: MESH_EXTERNAL
 ---
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: google-ext
@@ -904,7 +933,7 @@ spec:
 ```
 
 
-Allows only ```http://www.bbc.com/*``` and ```https://www.google.com/*```
+Allows only `http://www.bbc.com/*` and `https://www.google.com/*`
 
 To test the default policies, the `/requestz` endpoint tries to fetch the following URLs:
 
@@ -925,7 +954,7 @@ First make sure there is an inbound rule already running:
 kubectl replace -f istio-fev1-bev1.yaml
 ```
 
-And that you're using REGISTRY_ONLY:
+And that you're using `REGISTRY_ONLY`:
 
 ```bash
 kubectl get configmap istio -n istio-system -o yaml | grep -o "mode: REGISTRY_ONLY"
@@ -985,10 +1014,10 @@ gives
 
 ```
 
-> Note: the `502` response for the ```bbc.com``` entry is the actual denial rule from the istio-proxy (`502`->Bad Gateway)
+> Note: the `502` response for the `bbc.com` entry is the actual denial rule from the istio-proxy (`502`->Bad Gateway)
 
 
-then apply the egress policy which allows ```www.bbc.com:80``` and ```www.google.com:443```
+then apply the egress policy which allows `www.bbc.com:80` and `www.google.com:443`
 
 ```bash
 kubectl apply -f istio-egress-rule.yaml
@@ -1066,7 +1095,7 @@ kubectl apply -f istio-egress-gateway.yaml
 Notice the gateway TLS mode is `PASSTHROUGH` ("_Note the PASSTHROUGH TLS mode which instructs the gateway to pass the ingress traffic AS IS, without terminating TLS._")
 
 ```yaml
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1
 kind: Gateway
 metadata:
   name: istio-egressgateway
@@ -1219,7 +1248,7 @@ Then notice just the last, unencrypted traffic to yahoo succeeds
 You can also configure the `global.proxy.includeIPRanges=` variable to completely bypass the IP ranges for certain serivces.   This setting is described under [Calling external services directly](https://istio.io/docs/tasks/traffic-management/egress/#calling-external-services-directly) and details the ranges that _should_ get covered by the proxy.  For GKE, you need to cover the subnets included and allocated:
 
 
-### Access GCE MetadataServer
+### Access GCE MetadataServer (GKE only)
 
 The `/metadata` endpoint access the GCE metadata server and returns the current projectID.  This endpoint makes three separate requests using the three formats I've see GCP client libraries use.  (note: the hostnames are supposed to resolve to the link local IP address shown below)
 
@@ -1263,7 +1292,7 @@ So lets do just that:
 ```
 
 ```yaml
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1
 kind: ServiceEntry
 metadata:
   name: metadata-ext
@@ -1370,7 +1399,7 @@ kubectl apply -f istio-fev1-httpfilter-lua.yaml
 ```
 
 ```yaml
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1
 kind: EnvoyFilter
 metadata:
   name: ui-examplefilter
@@ -1528,14 +1557,14 @@ kubectl apply -f auth-policy.yaml
 Note that by default we have mTLS and deny by default
 
 ```yaml
-apiVersion: security.istio.io/v1beta1
+apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
  name: deny-all-authz-ns
 spec:
   {} 
 ---
-apiVersion: security.istio.io/v1beta1
+apiVersion: security.istio.io/v1
 kind: PeerAuthentication
 metadata:
   name: default-peerauth
@@ -1656,7 +1685,7 @@ The other way is to push the allow/deny decision down from Authentication to Aut
 In `auth-policy.yaml`, uncomment  the `AuthorizationPolicy` stanza which does the first check for correct audience value in the inbound token for `svc2` (the one bob uses):
 
 ```yaml
-apiVersion: security.istio.io/v1beta1
+apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
  name: svc2-az
@@ -1733,7 +1762,7 @@ For now, edit `auth-policy.yaml` and modify the authorization policy for the bac
 
 ```yaml
 ---
-apiVersion: security.istio.io/v1beta1
+apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
  name: svc2-az
@@ -1828,7 +1857,7 @@ We can use this service acount to say: 'only allow requests from svc1-sa to acce
  That is, 
 
 ```yaml
-apiVersion: security.istio.io/v1beta1
+apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
  name: svc2-az
@@ -1905,7 +1934,7 @@ This is a bit silly since we needed to use the JWT token for bob for just servic
 You dont' ofcourse need to do that: just edit the `AuthorizationPolicy` for `svc2` and comment out
 
 ```yaml
-apiVersion: security.istio.io/v1beta1
+apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
  name: svc2-az
@@ -1958,7 +1987,7 @@ You can also setup `envoy.ext_authz` Filter in this cluster.  When using the `ex
 
 
 ```yaml
-apiVersion: networking.istio.io/v1alpha3
+apiVersion: networking.istio.io/v1
 kind: EnvoyFilter
 metadata:
   name: ext-authz-filter
