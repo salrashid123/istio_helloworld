@@ -750,7 +750,9 @@ spec:
         k8s:
           serviceAnnotations:
             cloud.google.com/load-balancer-type: "internal"
+            networking.gke.io/load-balancer-type: "Internal"
           service:
+            type: LoadBalancer
             ports:
             - port: 443
               name: https
