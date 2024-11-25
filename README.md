@@ -115,7 +115,7 @@ minikube dashboard
 
 
 ## for GKE
-# gcloud container  clusters create cluster-1 --machine-type "n2-standard-4" --zone us-central1-a  --num-nodes 4 --enable-ip-alias -q
+# gcloud container  clusters create cluster-1 --machine-type "n2-standard-4" --zone us-central1-a  --num-nodes 4  --enable-l4-ilb-subsetting --enable-ip-alias -q
 # gcloud container clusters get-credentials cluster-1 --zone us-central1-a
 # kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=$(gcloud config get-value core/account)
 
